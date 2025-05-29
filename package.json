@@ -1,24 +1,33 @@
 {
-  "name": "soundboard-but-better",
+  "name": "soundboard-client",
   "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "server": "node server/index.js",
-    "client": "cd client && npm start",
-    "install-deps": "npm install && cd client && npm install",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "start": "npm run server",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": ["soundboard", "real-time", "socket.io", "multiplayer"],
-  "author": "",
-  "license": "ISC",
-  "description": "A real-time multiplayer soundboard application",
+  "private": true,
   "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
+    "socket.io-client": "^4.7.2",
     "express": "^4.18.2",
     "socket.io": "^4.7.2",
-    "cors": "^2.8.5",
-    "uuid": "^9.0.0",
-    "concurrently": "^8.2.1"
+    "cors": "^2.8.5"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "client-start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }

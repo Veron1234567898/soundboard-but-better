@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
-import { io } from 'socket.io-client';
+import io from 'socket.io-client';
+import { API_URL } from './config';
 import { FaHeart, FaPlus, FaSearch, FaSortAmountDown, FaVolumeMute, FaVolumeUp, FaPlay, FaStop } from 'react-icons/fa';
 import { v4 as uuidv4 } from 'uuid';
+import './App.css';
 
 // Component to hold the main soundboard
 const Soundboard = () => {
@@ -22,7 +24,7 @@ const Soundboard = () => {
 
   // Initialize socket connection to Replit backend
   useEffect(() => {
-    const newSocket = io('https://4bd256b4-51f9-4102-a170-5606baa1da5b-00-2scobb2uzgcy4.pike.replit.dev', {
+    const newSocket = io(API_URL, {
       withCredentials: false,
       transports: ['websocket', 'polling']
     });
@@ -67,7 +69,7 @@ const Soundboard = () => {
 
   // Fetch sounds from the Replit backend
   useEffect(() => {
-    fetch('https://4bd256b4-51f9-4102-a170-5606baa1da5b-00-2scobb2uzgcy4.pike.replit.dev/api/sounds')
+    fetch(`${API_URL}/api/sounds`)
       .then(response => response.json())
       .then(data => {
         setSounds(data);
@@ -76,7 +78,7 @@ const Soundboard = () => {
         const audioElementsObj = {};
         data.forEach(sound => {
           // Update the audio path to use the Replit backend URL
-          const audio = new Audio(`https://4bd256b4-51f9-4102-a170-5606baa1da5b-00-2scobb2uzgcy4.pike.replit.dev/sounds/${sound.file}`);
+          const audio = new Audio(`${API_URL}/sounds/${sound.file}`);
           audioElementsObj[sound.id] = audio;
         });
         setAudioElements(audioElementsObj);

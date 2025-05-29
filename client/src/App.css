@@ -1,0 +1,136 @@
+/* Basic styles for the Soundboard app */
+
+.soundboard-container {
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.controls-container {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.stop-button {
+  background-color: #ff4d4d;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.stop-button.active {
+  background-color: #cc0000;
+}
+
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.volume-slider {
+  width: 100px;
+}
+
+.tabs-container {
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 8px 12px;
+  margin-right: 5px;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.tab.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.sounds-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.sound-item {
+  border: 1px solid #ddd;
+  padding: 10px;
+  width: 150px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sound-name {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.sound-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.favorite-button.active {
+  color: red;
+}
+
+.sidebar-container {
+  margin-top: 30px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sidebar-button {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  background-color: #eee;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sidebar-button.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.room-info {
+  margin-top: 20px;
+  font-weight: bold;
+}
+
+.home-container {
+  padding: 40px;
+  text-align: center;
+}
+
+.room-actions {
+  margin-top: 20px;
+}
+
+.create-room-button {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.join-room-form input {
+  padding: 8px;
+  font-size: 16px;
+  width: 200px;
+  margin-right: 10px;
+}
+
+.join-room-form button {
+  padding: 8px 16px;
+  font-size: 16px;
+  cursor: pointer;
+}
