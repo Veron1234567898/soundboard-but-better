@@ -20,10 +20,23 @@ const Soundboard = () => {
   const [isInPlaylistMode, setIsInPlaylistMode] = useState(false);
   const [isPassThrough, setIsPassThrough] = useState(false);
 
-  // Initialize socket connection
+  // Initialize socket connection to Replit backend
   useEffect(() => {
-    const newSocket = io('http://localhost:3001');
+    const newSocket = io('https://4bd256b4-51f9-4102-a170-5606baa1da5b-00-2scobb2uzgcy4.pike.replit.dev', {
+      withCredentials: false,
+      transports: ['websocket', 'polling']
+    });
+    
     setSocket(newSocket);
+    
+    // Connection status logging
+    newSocket.on('connect', () => {
+      console.log('Connected to Replit backend with ID:', newSocket.id);
+    });
+    
+    newSocket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+    });
     
     // Clean up on unmount
     return () => newSocket.disconnect();
@@ -32,23 +45,29 @@ const Soundboard = () => {
   // Join room when socket is ready and roomId is available
   useEffect(() => {
     if (socket && roomId) {
-      socket.emit('join-room', roomId);
+      // Join the room with user info
+      socket.emit('join-room', {
+        roomId,
+        userName: `User-${Math.floor(Math.random() * 1000)}` // Random username
+      });
       
       // Listen for room info updates
       socket.on('room-info', (data) => {
-        setUserCount(data.users);
+        console.log('Room info received:', data);
+        setUserCount(data.userCount || 1);
       });
       
       // Listen for play sound events
       socket.on('play-sound', (data) => {
+        console.log('Remote sound play received:', data);
         playSound(data.soundId, false);
       });
     }
   }, [socket, roomId]);
 
-  // Fetch sounds from the server
+  // Fetch sounds from the Replit backend
   useEffect(() => {
-    fetch('http://localhost:3001/api/sounds')
+    fetch('https://4bd256b4-51f9-4102-a170-5606baa1da5b-00-2scobb2uzgcy4.pike.replit.dev/api/sounds')
       .then(response => response.json())
       .then(data => {
         setSounds(data);
@@ -56,7 +75,8 @@ const Soundboard = () => {
         // Pre-load audio elements
         const audioElementsObj = {};
         data.forEach(sound => {
-          const audio = new Audio(`/sounds/${sound.file}`);
+          // Update the audio path to use the Replit backend URL
+          const audio = new Audio(`https://4bd256b4-51f9-4102-a170-5606baa1da5b-00-2scobb2uzgcy4.pike.replit.dev/sounds/${sound.file}`);
           audioElementsObj[sound.id] = audio;
         });
         setAudioElements(audioElementsObj);
@@ -92,11 +112,13 @@ const Soundboard = () => {
     
     // If it's a local play, emit to other users
     if (isLocal && socket && roomId) {
+      console.log('Broadcasting sound to room:', roomId, soundId);
       socket.emit('play-sound', {
         roomId,
         soundId,
         timestamp: Date.now()
       });
+    
     }
   };
 
