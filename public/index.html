@@ -1,0 +1,2264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soundboard But Better</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+  <style>
+    /* Define variables */
+    :root {
+      --bg-color: #202020;
+      --sidebar-color: #2a2a2a;
+      --item-color: #333333;
+      --text-color: #e0e0e0;
+      --highlight-color: #3a6e3a;
+      --highlight-text: #ffffff;
+      --blur-amount: 8px;
+      --transition-speed: 0.3s;
+      --glow-color: rgba(58, 110, 58, 0.6);
+      --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      --hover-scale: 1.03;
+      --button-active: #505050;
+      --heart-color: #ff5555;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Roboto', sans-serif;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #202020;
+      color: #e0e0e0;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+      20%, 40%, 60%, 80% { transform: translateX(5px); }
+    }
+
+    @keyframes pulse-remote {
+      0% { transform: scale(1); background-color: #6e3a3a; }
+      50% { transform: scale(1.03); background-color: #8e4a4a; }
+      100% { transform: scale(1); background-color: #6e3a3a; }
+    }
+    
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
+
+    .soundboard-container {
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      grid-template-rows: auto auto 1fr;
+      grid-template-areas:
+        "controls controls"
+        "tabs tabs"
+        "sounds sidebar";
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Controls */
+    .controls-container {
+      grid-area: controls;
+      display: flex;
+      align-items: center;
+      padding: 15px;
+      background-color: rgba(42, 42, 42, 0.8);
+      backdrop-filter: blur(var(--blur-amount));
+      -webkit-backdrop-filter: blur(var(--blur-amount));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      z-index: 10;
+    }
+
+    .stop-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: rgba(51, 51, 51, 0.8);
+      color: var(--text-color);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px 20px;
+      margin-right: 20px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all var(--transition-speed) ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .stop-button.active {
+      background-color: rgba(204, 51, 51, 0.8);
+      border-color: rgba(255, 100, 100, 0.3);
+      box-shadow: 0 2px 12px rgba(204, 51, 51, 0.4), 0 0 8px rgba(204, 51, 51, 0.6);
+    }
+
+    .stop-button:hover {
+      background-color: rgba(65, 65, 65, 0.9);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    .stop-button:active {
+      transform: translateY(1px);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .volume-control {
+      display: flex;
+      align-items: center;
+      margin-right: 20px;
+    }
+
+    .volume-control span {
+      margin: 0 10px;
+      white-space: nowrap;
+    }
+
+    .volume-slider {
+      width: 200px;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(85, 85, 85, 0.5);
+      outline: none;
+      border-radius: 4px;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+      transition: all var(--transition-speed) ease;
+    }
+    
+    .volume-slider:hover {
+      background: rgba(100, 100, 100, 0.6);
+    }
+
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: var(--highlight-color);
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+      transition: all var(--transition-speed) ease;
+    }
+    
+    .volume-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 1px 8px rgba(0, 0, 0, 0.4), 0 0 4px var(--glow-color);
+    }
+
+    /* Tabs */
+    .tabs-container {
+      grid-area: tabs;
+      display: flex;
+      background-color: rgba(37, 37, 37, 0.8);
+      backdrop-filter: blur(var(--blur-amount));
+      -webkit-backdrop-filter: blur(var(--blur-amount));
+      padding: 10px 15px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      z-index: 5;
+    }
+
+    .tab {
+      background-color: rgba(48, 48, 48, 0.6);
+      color: var(--text-color);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-bottom: none;
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+      padding: 10px 20px;
+      margin-right: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: bold;
+      transition: all var(--transition-speed) ease;
+      box-shadow: 0 -1px 5px rgba(0, 0, 0, 0.1);
+      position: relative;
+      top: 1px;
+    }
+
+    .tab.active {
+      background-color: rgba(58, 110, 58, 0.6);
+      border-color: rgba(58, 110, 58, 0.3);
+      color: var(--highlight-text);
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2), 0 0 6px rgba(58, 110, 58, 0.3);
+      z-index: 2;
+    }
+
+    .tab:hover:not(.active) {
+      background-color: rgba(65, 65, 65, 0.8);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+
+    /* Sounds */
+    .sounds-container {
+      grid-area: sounds;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      height: 600px !important; /* Fixed height value */
+      overflow-y: scroll !important; /* Force scrolling */
+      padding: 10px;
+      position: relative;
+      background-color: rgba(32, 32, 32, 0.7);
+      backdrop-filter: blur(var(--blur-amount) / 2);
+      -webkit-backdrop-filter: blur(var(--blur-amount) / 2);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(100, 100, 100, 0.5) rgba(40, 40, 40, 0.2);
+    }
+    
+    /* Custom scrollbar */
+    .sounds-container::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .sounds-container::-webkit-scrollbar-track {
+      background: rgba(40, 40, 40, 0.2);
+      border-radius: 4px;
+    }
+    
+    .sounds-container::-webkit-scrollbar-thumb {
+      background-color: rgba(100, 100, 100, 0.5);
+      border-radius: 4px;
+      transition: background-color 0.3s ease;
+    }
+    
+    .sounds-container::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(120, 120, 120, 0.7);
+    }
+    
+    /* Smooth scrolling styles */
+    .sounds-container {
+      scroll-behavior: smooth;
+      transition: background-color 0.3s ease;
+    }
+    
+    .sounds-container.smooth-scrolling {
+      background-color: rgba(40, 40, 40, 0.8);
+    }
+    
+    .smooth-scrolling .sound-item {
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .smooth-scrolling .sound-item:nth-child(odd) {
+      transform: scale(0.98) translateX(-2px);
+    }
+    
+    .smooth-scrolling .sound-item:nth-child(even) {
+      transform: scale(0.98) translateX(2px);
+    }
+    
+    .sounds-container.smooth-scrolling:after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      box-shadow: inset 0 0 20px var(--glow-color);
+      opacity: 0.3;
+      transition: opacity 0.5s ease;
+      border-radius: 8px;
+    }
+
+    .sound-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 15px;
+      margin-bottom: 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      background-color: rgba(51, 51, 51, 0.8);
+      backdrop-filter: blur(var(--blur-amount));
+      -webkit-backdrop-filter: blur(var(--blur-amount));
+      box-shadow: var(--card-shadow);
+      transition: transform var(--transition-speed), box-shadow var(--transition-speed), background-color var(--transition-speed);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .sound-item:hover {
+      transform: scale(var(--hover-scale));
+      background-color: rgba(60, 60, 60, 0.9);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35), 0 0 8px var(--glow-color);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+    
+    .sound-item.playing {
+      background-color: rgba(58, 110, 58, 0.85);
+      animation: pulse 0.5s ease-in-out;
+      border-color: rgba(58, 110, 58, 0.5);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(58, 110, 58, 0.6);
+    }
+    
+    .sound-item.playing-remote {
+      background-color: rgba(110, 58, 58, 0.85);
+      animation: pulse-remote 0.6s ease-in-out;
+      border-color: rgba(110, 58, 58, 0.5);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(110, 58, 58, 0.6);
+    }
+    
+    @keyframes pulse-remote {
+      0% { transform: scale(1); background-color: #6e3a3a; }
+      50% { transform: scale(1.03); background-color: #8e4a4a; }
+      100% { transform: scale(1); background-color: #6e3a3a; }
+    }
+    
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
+
+    .sound-name {
+      flex-grow: 1;
+    }
+
+    .sound-actions {
+      display: flex;
+      gap: 5px;
+    }
+
+    .favorite-button, .edit-button {
+      background: none;
+      border: none;
+      color: var(--text-color);
+      cursor: pointer;
+      padding: 5px;
+    }
+
+    .favorite-button.active {
+      color: var(--heart-color);
+    }
+
+    .favorite-button:hover, .edit-button:hover {
+      color: #fff;
+    }
+
+    /* Sidebar */
+    .sidebar-container {
+      grid-area: sidebar;
+      display: flex;
+      flex-direction: column;
+      padding: 15px;
+      background-color: rgba(42, 42, 42, 0.8);
+      backdrop-filter: blur(var(--blur-amount));
+      -webkit-backdrop-filter: blur(var(--blur-amount));
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .sidebar-button {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      background-color: rgba(51, 51, 51, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      color: var(--text-color);
+      padding: 12px 15px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      text-align: left;
+      font-weight: bold;
+      transition: all var(--transition-speed) ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    .sidebar-button:hover {
+      background-color: rgba(65, 65, 65, 0.7);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 4px var(--glow-color);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+    
+    .sidebar-button:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .sidebar-button svg {
+      margin-right: 10px;
+    }
+
+    .sidebar-button:hover {
+      background-color: var(--button-hover);
+    }
+
+    .sidebar-button.active {
+      background-color: var(--button-active);
+    }
+
+    /* Loading state */
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    
+    .sound-entry {
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .sound-entry button {
+      margin-right: 10px;
+      padding: 5px 10px;
+      background-color: var(--tab-active);
+      border: none;
+      color: var(--text-color);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="diagnostics" style="position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; max-width: 400px; max-height: 200px; overflow: auto; z-index: 1000; font-size: 12px; display: none;">
+    <h4>Sound Diagnostics</h4>
+    <div id="diagnostic-content"></div>
+    <button onclick="document.getElementById('diagnostics').style.display='none'">Close</button>
+  </div>
+  
+  <div id="room-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); display: none; justify-content: center; align-items: center; z-index: 2000; transition: all 0.3s ease;">
+    <div style="background: rgba(37, 37, 37, 0.9); padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.3), 0 0 15px rgba(58, 110, 58, 0.2); border: 1px solid rgba(255,255,255,0.1); transform: translateY(0); transition: all 0.3s ease;">
+      <h3 style="margin-top: 0; color: #ffffff; font-size: 20px; font-weight: 500; margin-bottom: 15px;">Join Room</h3>
+      
+      <div style="margin-bottom: 25px;">
+        <p style="color: #e0e0e0; margin-bottom: 15px; font-size: 14px;">Enter a room code to join a specific soundboard room:</p>
+        <input type="text" id="room-code-input" placeholder="Enter room code" style="width: 100%; padding: 12px 15px; margin-bottom: 15px; background: rgba(30, 30, 30, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); color: #e0e0e0; font-size: 16px; border-radius: 8px; box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2); transition: all 0.3s ease; outline: none;">
+      </div>
+      
+      <div style="display: flex; justify-content: space-between;">
+        <button id="close-room-modal" style="padding: 10px 20px; background: rgba(51, 51, 51, 0.7); color: white; border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer; border-radius: 8px; font-size: 14px; transition: all 0.3s ease; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);">Cancel</button>
+        <button id="join-room-button" style="padding: 10px 20px; background: rgba(58, 110, 58, 0.7); color: white; border: 1px solid rgba(58, 110, 58, 0.3); cursor: pointer; border-radius: 8px; font-size: 14px; transition: all 0.3s ease; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2), 0 0 5px rgba(58, 110, 58, 0.2);">Join Room</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="downloader-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 2000;">
+    <div style="background: #252525; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto;">
+      <h3 style="margin-top: 0; color: #e0e0e0;">Sound Downloader</h3>
+      
+      <div id="download-existing" style="margin-bottom: 20px;">
+        <h4>Download Existing Sounds</h4>
+        <div id="download-list" style="max-height: 200px; overflow-y: auto;"></div>
+      </div>
+      
+      <div id="download-new" style="margin-bottom: 20px;">
+        <h4>Download from URL</h4>
+        <input type="text" id="sound-url" placeholder="Enter MP3 URL" style="width: 100%; padding: 8px; margin-bottom: 10px; background: #333; border: 1px solid #444; color: #e0e0e0;">
+        <input type="text" id="sound-name" placeholder="Sound name" style="width: 100%; padding: 8px; margin-bottom: 10px; background: #333; border: 1px solid #444; color: #e0e0e0;">
+        <button id="download-url-button" style="padding: 8px 16px; background: #3a6e3a; color: white; border: none; cursor: pointer;">Download</button>
+      </div>
+      
+
+      
+      <div style="display: flex; justify-content: space-between;">
+        <button id="close-downloader" style="padding: 8px 16px; background: #333; color: white; border: none; cursor: pointer;">Close</button>
+        <div id="download-status" style="color: #e0e0e0;"></div>
+      </div>
+    </div>
+  </div>
+  
+  <canvas id="visualizer" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.7;"></canvas>
+  
+  <div id="notifications-container" style="position: fixed; top: 10px; right: 10px; z-index: 1000; max-width: 300px;"></div>
+  
+  <div id="app">
+    <div class="soundboard-container">
+      <div class="controls-container">
+        <button class="stop-button" id="stop-button">
+          STOP
+        </button>
+        
+        <div class="volume-control">
+          <span>Local volume</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value="50"
+            class="volume-slider"
+            id="local-volume"
+          />
+        </div>
+        
+        <div class="volume-control">
+          <span>Remote volume</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value="50"
+            class="volume-slider"
+            id="remote-volume"
+          />
+        </div>
+      </div>
+      
+      <div class="tabs-container">
+        <button class="tab active">TAB 1</button>
+        <button class="tab">TAB 2</button>
+        <button class="tab">TAB 3</button>
+        <button class="tab">TAB 4</button>
+        <button class="tab">TAB 5</button>
+      </div>
+      
+      <div class="sounds-container" id="sounds-container">
+        <!-- Sounds will be dynamically added here -->
+      </div>
+      
+      <div class="sidebar-container">
+        <button class="sidebar-button">ADD TAB</button>
+        <button class="sidebar-button">RELOAD</button>
+        <button class="sidebar-button">DOWNLOADER</button>
+        <button class="sidebar-button">SEARCH</button>
+        <button class="sidebar-button">SORT</button>
+        <button class="sidebar-button">FAVORITES</button>
+        <button class="sidebar-button">PLAYLIST MODE</button>
+        <button class="sidebar-button">PASS THROUGH</button>
+        <button class="sidebar-button">SETTINGS</button>
+        <button class="sidebar-button">HELP</button>
+        <button class="sidebar-button" onclick="runDiagnostics()">DIAGNOSTICS</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Function to test audio playback and diagnose issues
+    function runDiagnostics() {
+      const diagnosticsDiv = document.getElementById('diagnostics');
+      const diagnosticContent = document.getElementById('diagnostic-content');
+      diagnosticsDiv.style.display = 'block';
+      diagnosticContent.innerHTML = '<p>Running diagnostics...</p>';
+      
+      // Get the current server port from the URL
+      const serverPort = window.location.port || '3001';
+      const serverUrl = `${window.location.protocol}//${window.location.hostname}:${serverPort}`;
+      
+      // Test API endpoint
+      fetch(`${serverUrl}/api/sounds`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`API response error: ${response.status} ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(sounds => {
+          let html = '<h5>API Test:</h5><p>✅ API connection successful</p>';
+          html += `<p>Found ${sounds.length} sound(s):</p><ul>`;
+          
+          sounds.forEach(sound => {
+            html += `<li>${sound.name} (${sound.file})</li>`;
+          });
+          html += '</ul>';
+          
+          // Test sound file access
+          html += '<h5>Sound File Test:</h5>';
+          const testPromises = sounds.map(sound => {
+            return new Promise((resolve) => {
+              const audioUrl = `${serverUrl}/sounds/${sound.file}`;
+              fetch(audioUrl, { method: 'HEAD' })
+                .then(response => {
+                  if (response.ok) {
+                    resolve(`<p>✅ ${sound.file} is accessible</p>`);
+                  } else {
+                    resolve(`<p>❌ ${sound.file} is not accessible (${response.status})</p>`);
+                  }
+                })
+                .catch(error => {
+                  resolve(`<p>❌ Error checking ${sound.file}: ${error.message}</p>`);
+                });
+            });
+          });
+          
+          Promise.all(testPromises).then(results => {
+            html += results.join('');
+            
+            // Add a test play button
+            if (sounds.length > 0) {
+              const testSound = sounds[0];
+              html += '<h5>Manual Test:</h5>';
+              html += `<button onclick="testPlaySound('${testSound.file}')">Test Play ${testSound.name}</button>`;
+              html += '<div id="test-result"></div>';
+            }
+            
+            diagnosticContent.innerHTML = html;
+          });
+        })
+        .catch(error => {
+          diagnosticContent.innerHTML = `<p>❌ API Error: ${error.message}</p>`;
+        });
+    }
+    
+    // Function to test playing a specific sound
+    function testPlaySound(filename) {
+      const testResult = document.getElementById('test-result');
+      testResult.innerHTML = 'Attempting to play sound...';
+      
+      const serverPort = window.location.port || '3001';
+      const serverUrl = `${window.location.protocol}//${window.location.hostname}:${serverPort}`;
+      const audioUrl = `${serverUrl}/sounds/${filename}`;
+      
+      const audio = new Audio(audioUrl);
+      audio.volume = 1.0; // Full volume for test
+      
+      // Log all audio events
+      ['loadstart', 'durationchange', 'loadedmetadata', 'loadeddata', 'progress', 'canplay', 'canplaythrough', 'error'].forEach(event => {
+        audio.addEventListener(event, () => {
+          console.log(`Audio event: ${event}`);
+          if (event === 'error') {
+            testResult.innerHTML += `<br>❌ Error event triggered: ${audio.error ? audio.error.message : 'unknown error'}`;
+          } else if (event === 'canplaythrough') {
+            testResult.innerHTML += '<br>✅ Audio can play through';
+          }
+        });
+      });
+      
+      // Try to play the sound
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            testResult.innerHTML += '<br>✅ Audio playback started successfully';
+          })
+          .catch(error => {
+            testResult.innerHTML += `<br>❌ Audio playback failed: ${error.message}`;
+            console.error('Audio playback failed:', error);
+            
+            // Suggest solutions
+            testResult.innerHTML += '<br><br><strong>Possible solutions:</strong>';
+            testResult.innerHTML += '<br>1. Check if your browser allows autoplay (Chrome often blocks it)';
+            testResult.innerHTML += '<br>2. Try clicking anywhere on the page first, then try again';
+            testResult.innerHTML += '<br>3. Make sure your sound files are valid audio files';
+          });
+      }
+    }
+    
+    // Global variables for sound management
+    let activeAudios = [];
+    let localVolume = 0.5;
+    let remoteVolume = 0.5;
+    let isPlaying = false;
+    let activeTab = 1;
+    let favorites = [];
+    let isInPlaylistMode = false;
+    let isPassThrough = false;
+    
+    // Socket.IO variables for multiplayer
+    let socket;
+    let roomId;
+    let userName;
+    let userCount = 1;
+    
+    // Audio visualizer variables
+    let audioContext;
+    let analyser;
+    let visualizerCanvas;
+    let visualizerCtx;
+    let visualizerInitialized = false;
+    let visualizerAnimationId;
+    let visualizerMode = 'bars'; // 'bars', 'circles', 'wave'
+    let visualizerColorScheme = 0; // 0, 1, 2, 3, 4
+    
+    // Simple JavaScript to load and display sounds
+    // Enable smooth scrolling for sounds container
+    function enableSmoothScrolling() {
+      const soundsContainer = document.querySelector('.sounds-container');
+      if (!soundsContainer) return;
+      
+      // Variables for tracking scroll state
+      let isScrolling = false;
+      let startY = 0;
+      let scrollTop = 0;
+      let scrollVelocity = 0;
+      let lastY = 0;
+      let animationFrameId = null;
+      
+      // Set default overflow
+      soundsContainer.style.overflowY = 'auto';
+      
+      // Wheel event for smooth scrolling
+      soundsContainer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        
+        // Add smooth scrolling class for visual feedback
+        soundsContainer.classList.add('smooth-scrolling');
+        clearTimeout(soundsContainer.scrollTimeout);
+        
+        // Calculate new scroll position with smooth effect
+        const delta = e.deltaY || e.detail || e.wheelDelta;
+        scrollVelocity = delta * 0.5; // Adjust multiplier for speed
+        
+        if (!isScrolling) {
+          isScrolling = true;
+          lastY = soundsContainer.scrollTop;
+          requestAnimationFrame(animateScroll);
+        }
+        
+        // Remove class after scrolling stops
+        soundsContainer.scrollTimeout = setTimeout(() => {
+          soundsContainer.classList.remove('smooth-scrolling');
+        }, 800);
+      }, { passive: false });
+      
+      // Mouse down event for drag scrolling
+      soundsContainer.addEventListener('mousedown', (e) => {
+        // Only handle middle mouse button (button 1)
+        if (e.button === 1) {
+          e.preventDefault();
+          isScrolling = true;
+          startY = e.pageY;
+          scrollTop = soundsContainer.scrollTop;
+          soundsContainer.classList.add('smooth-scrolling');
+          document.body.style.cursor = 'grabbing';
+          
+          // Add temporary listeners for mouse movement and release
+          document.addEventListener('mousemove', handleMouseMove);
+          document.addEventListener('mouseup', handleMouseUp);
+        }
+      });
+      
+      // Touch events for mobile
+      soundsContainer.addEventListener('touchstart', (e) => {
+        isScrolling = true;
+        startY = e.touches[0].pageY;
+        scrollTop = soundsContainer.scrollTop;
+        lastY = scrollTop;
+        soundsContainer.classList.add('smooth-scrolling');
+      }, { passive: true });
+      
+      soundsContainer.addEventListener('touchmove', (e) => {
+        if (!isScrolling) return;
+        const y = e.touches[0].pageY;
+        const deltaY = startY - y;
+        const newScrollTop = scrollTop + deltaY;
+        scrollVelocity = (newScrollTop - lastY) * 0.5;
+        lastY = newScrollTop;
+        soundsContainer.scrollTop = newScrollTop;
+      }, { passive: true });
+      
+      soundsContainer.addEventListener('touchend', () => {
+        if (!isScrolling) return;
+        isScrolling = false;
+        requestAnimationFrame(animateScroll);
+        
+        // Remove class after scrolling stops
+        setTimeout(() => {
+          soundsContainer.classList.remove('smooth-scrolling');
+        }, 800);
+      }, { passive: true });
+      
+      // Handle mouse movement for drag scrolling
+      function handleMouseMove(e) {
+        if (!isScrolling) return;
+        const y = e.pageY;
+        const deltaY = startY - y;
+        const newScrollTop = scrollTop + deltaY;
+        scrollVelocity = (newScrollTop - lastY) * 0.5;
+        lastY = newScrollTop;
+        soundsContainer.scrollTop = newScrollTop;
+      }
+      
+      // Handle mouse up for drag scrolling
+      function handleMouseUp() {
+        isScrolling = false;
+        document.body.style.cursor = '';
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        
+        requestAnimationFrame(animateScroll);
+        
+        // Remove class after scrolling stops
+        setTimeout(() => {
+          soundsContainer.classList.remove('smooth-scrolling');
+        }, 800);
+      }
+      
+      // Animation function for smooth scrolling with momentum
+      function animateScroll() {
+        if (Math.abs(scrollVelocity) < 0.5 || !soundsContainer) {
+          isScrolling = false;
+          return;
+        }
+        
+        soundsContainer.scrollTop += scrollVelocity;
+        scrollVelocity *= 0.95; // Friction factor
+        animationFrameId = requestAnimationFrame(animateScroll);
+      }
+      
+      console.log('Smooth scrolling enabled for sounds container');
+    }
+    
+    // Initialize visualizer (do this on page load)
+    function initVisualizer() {
+      try {
+        const canvas = document.getElementById('visualizer');
+        if (!canvas) return;
+        
+        // Check if we've already initialized
+        if (visualizerInitialized) return;
+        
+        visualizerCanvas = canvas;
+        visualizerCtx = visualizerCanvas.getContext('2d');
+        
+        // Set canvas dimensions to match window
+        resizeVisualizer();
+        window.addEventListener('resize', resizeVisualizer);
+        
+        // Create audio context and analyzer
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        
+        visualizerInitialized = true;
+        
+        // Start animation loop
+        renderVisualizer();
+        
+        console.log('Visualizer initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize visualizer:', error);
+      }
+    }
+    
+    // Resize visualizer canvas to match window
+    function resizeVisualizer() {
+      if (!visualizerCanvas) return;
+      
+      visualizerCanvas.width = window.innerWidth;
+      visualizerCanvas.height = window.innerHeight;
+    }
+    
+    // Connect audio element to visualizer
+    function connectToVisualizer(audioElement) {
+      if (!visualizerInitialized) {
+        initVisualizer();
+      }
+      
+      try {
+        // Create media element source
+        const source = audioContext.createMediaElementSource(audioElement);
+        
+        // Connect source to analyzer and then to destination
+        source.connect(analyser);
+        analyser.connect(audioContext.destination);
+        
+        return source;
+      } catch (error) {
+        console.error('Failed to connect to visualizer:', error);
+        return null;
+      }
+    }
+    
+    // Render visualizer animation
+    function renderVisualizer() {
+      if (!visualizerInitialized) return;
+      
+      visualizerAnimationId = requestAnimationFrame(renderVisualizer);
+      
+      // Create data array for analyzer
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      // Get frequency data
+      analyser.getByteFrequencyData(dataArray);
+      
+      // Clear canvas
+      visualizerCtx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+      
+      // Choose visualization mode
+      switch (visualizerMode) {
+        case 'circles':
+          drawCircleVisualizer(dataArray, bufferLength);
+          break;
+          
+        case 'wave':
+          drawWaveVisualizer(dataArray, bufferLength);
+          break;
+          
+        case 'bars':
+        default:
+          drawBarsVisualizer(dataArray, bufferLength);
+          break;
+      }
+    }
+    
+    // Draw bars visualizer
+    function drawBarsVisualizer(dataArray, bufferLength) {
+      const barWidth = visualizerCanvas.width / bufferLength * 2.5;
+      let x = 0;
+      
+      // Color schemes
+      const colorSchemes = [
+        { base: '#4CAF50', highlight: '#8BC34A' }, // Green
+        { base: '#2196F3', highlight: '#03A9F4' }, // Blue
+        { base: '#9C27B0', highlight: '#E1BEE7' }, // Purple
+        { base: '#FF5722', highlight: '#FFAB91' }, // Orange
+        { base: '#F44336', highlight: '#FFCDD2' }  // Red
+      ];
+      
+      const colors = colorSchemes[visualizerColorScheme % colorSchemes.length];
+      
+      for (let i = 0; i < bufferLength; i++) {
+        const barHeight = dataArray[i] * 1.5;
+        
+        // Create gradient for each bar
+        const gradient = visualizerCtx.createLinearGradient(
+          x, visualizerCanvas.height - barHeight / 2, 
+          x, visualizerCanvas.height
+        );
+        
+        gradient.addColorStop(0, colors.highlight);
+        gradient.addColorStop(1, colors.base);
+        
+        visualizerCtx.fillStyle = gradient;
+        visualizerCtx.fillRect(x, visualizerCanvas.height - barHeight, barWidth - 1, barHeight);
+        
+        x += barWidth;
+      }
+    }
+    
+    // Draw circle visualizer
+    function drawCircleVisualizer(dataArray, bufferLength) {
+      const centerX = visualizerCanvas.width / 2;
+      const centerY = visualizerCanvas.height / 2;
+      
+      // Color schemes
+      const colorSchemes = [
+        { base: '#4CAF50', highlight: '#8BC34A' }, // Green
+        { base: '#2196F3', highlight: '#03A9F4' }, // Blue
+        { base: '#9C27B0', highlight: '#E1BEE7' }, // Purple
+        { base: '#FF5722', highlight: '#FFAB91' }, // Orange
+        { base: '#F44336', highlight: '#FFCDD2' }  // Red
+      ];
+      
+      const colors = colorSchemes[visualizerColorScheme % colorSchemes.length];
+      
+      // Draw multiple circles
+      for (let i = 0; i < bufferLength; i += 8) {
+        const radius = dataArray[i] * 1.5;
+        if (radius > 5) { // Only draw visible circles
+          const gradient = visualizerCtx.createRadialGradient(
+            centerX, centerY, 0,
+            centerX, centerY, radius
+          );
+          
+          gradient.addColorStop(0, colors.highlight + '80'); // Add transparency
+          gradient.addColorStop(1, colors.base + '40'); // More transparent at edge
+          
+          visualizerCtx.beginPath();
+          visualizerCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+          visualizerCtx.fillStyle = gradient;
+          visualizerCtx.fill();
+        }
+      }
+    }
+    
+    // Draw wave visualizer
+    function drawWaveVisualizer(dataArray, bufferLength) {
+      visualizerCtx.lineWidth = 2;
+      
+      // Color schemes
+      const colorSchemes = [
+        { base: '#4CAF50', highlight: '#8BC34A' }, // Green
+        { base: '#2196F3', highlight: '#03A9F4' }, // Blue
+        { base: '#9C27B0', highlight: '#E1BEE7' }, // Purple
+        { base: '#FF5722', highlight: '#FFAB91' }, // Orange
+        { base: '#F44336', highlight: '#FFCDD2' }  // Red
+      ];
+      
+      const colors = colorSchemes[visualizerColorScheme % colorSchemes.length];
+      
+      // Draw top wave
+      visualizerCtx.beginPath();
+      visualizerCtx.moveTo(0, visualizerCanvas.height / 2);
+      
+      const sliceWidth = visualizerCanvas.width / bufferLength;
+      let x = 0;
+      
+      for (let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = (visualizerCanvas.height / 2) - (v * visualizerCanvas.height / 4);
+        
+        if (i === 0) {
+          visualizerCtx.moveTo(x, y);
+        } else {
+          visualizerCtx.lineTo(x, y);
+        }
+        
+        x += sliceWidth;
+      }
+      
+      visualizerCtx.lineTo(visualizerCanvas.width, visualizerCanvas.height / 2);
+      
+      const gradient = visualizerCtx.createLinearGradient(
+        0, 0,
+        0, visualizerCanvas.height
+      );
+      
+      gradient.addColorStop(0, colors.highlight);
+      gradient.addColorStop(1, colors.base);
+      
+      visualizerCtx.strokeStyle = colors.base;
+      visualizerCtx.stroke();
+      
+      // Fill area under the wave
+      visualizerCtx.fillStyle = gradient + '40'; // Add transparency
+      visualizerCtx.fill();
+      
+      // Draw bottom wave (mirror)
+      visualizerCtx.beginPath();
+      visualizerCtx.moveTo(0, visualizerCanvas.height / 2);
+      
+      x = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = (visualizerCanvas.height / 2) + (v * visualizerCanvas.height / 4);
+        
+        if (i === 0) {
+          visualizerCtx.moveTo(x, y);
+        } else {
+          visualizerCtx.lineTo(x, y);
+        }
+        
+        x += sliceWidth;
+      }
+      
+      visualizerCtx.lineTo(visualizerCanvas.width, visualizerCanvas.height / 2);
+      visualizerCtx.strokeStyle = colors.base;
+      visualizerCtx.stroke();
+      visualizerCtx.fillStyle = gradient + '40'; // Add transparency
+      visualizerCtx.fill();
+    }
+    
+    // Change visualizer mode
+    function changeVisualizerMode() {
+      const modes = ['bars', 'circles', 'wave'];
+      const currentIndex = modes.indexOf(visualizerMode);
+      visualizerMode = modes[(currentIndex + 1) % modes.length];
+    }
+    
+    // Change visualizer color scheme
+    function changeVisualizerColor() {
+      visualizerColorScheme = (visualizerColorScheme + 1) % 5;
+    }
+    
+    // Set up the room modal event listeners
+    function setupRoomModal() {
+      console.log('Setting up room modal event listeners');
+      const roomModal = document.getElementById('room-modal');
+      const roomCodeInput = document.getElementById('room-code-input');
+      const closeButton = document.getElementById('close-room-modal');
+      const joinButton = document.getElementById('join-room-button');
+      
+      if (roomModal && roomCodeInput && closeButton && joinButton) {
+        // Close button event
+        closeButton.addEventListener('click', () => {
+          roomModal.style.display = 'none';
+        });
+        
+        // Join button event
+        joinButton.addEventListener('click', () => {
+          const newRoomId = roomCodeInput.value.trim().toUpperCase();
+          if (newRoomId) {
+            joinRoom(newRoomId);
+            roomModal.style.display = 'none';
+          } else {
+            // Shake the input if empty
+            roomCodeInput.style.animation = 'none';
+            setTimeout(() => {
+              roomCodeInput.style.animation = 'shake 0.5s';
+            }, 10);
+          }
+        });
+        
+        // Enter key event
+        roomCodeInput.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') {
+            joinButton.click();
+          }
+        });
+        
+        // Click outside to close
+        roomModal.addEventListener('click', (event) => {
+          if (event.target === roomModal) {
+            roomModal.style.display = 'none';
+          }
+        });
+        
+        console.log('Room modal setup complete');
+      } else {
+        console.error('Could not find all room modal elements');
+      }
+    }
+    
+    // Show the room join modal
+    function showRoomModal() {
+      console.log('Opening room join modal');
+      const roomModal = document.getElementById('room-modal');
+      const roomCodeInput = document.getElementById('room-code-input');
+      
+      if (roomModal && roomCodeInput) {
+        // Show the modal
+        roomModal.style.display = 'flex';
+        
+        // Focus the input and clear previous value
+        roomCodeInput.value = '';
+        roomCodeInput.focus();
+      } else {
+        console.error('Room modal elements not found');
+      }
+    }
+    
+    // Join a specific room
+    function joinRoom(newRoomId) {
+      console.log('Current room:', roomId);
+      console.log('Attempting to join room:', newRoomId);
+      
+      if (newRoomId === roomId) {
+        showNotification(`You're already in room ${roomId}`);
+        return;
+      }
+      
+      // Disconnect from current room
+      if (socket && socket.connected) {
+        // Update URL
+        window.history.pushState({}, document.title, `?room=${newRoomId}`);
+        
+        // Update room ID
+        roomId = newRoomId;
+        
+        // Reconnect to new room
+        socket.emit('join-room', {
+          roomId,
+          userName
+        });
+        
+        // Show notification
+        showNotification(`Joined room ${roomId}`);
+        
+        // Update room info
+        updateRoomInfo();
+      } else {
+        // If not connected, just update URL and reload
+        window.location.href = `${window.location.origin}${window.location.pathname}?room=${newRoomId}`;
+      }
+    }
+    
+    function initializeSocketIO() {
+      // Get the server URL from the current page
+      const serverUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port || '3001'}`;
+      
+      // Connect to Socket.IO server
+      socket = io(serverUrl);
+      console.log('Socket.IO connected, joining room:', roomId);
+      
+      // Update URL with room ID for sharing
+      if (!getQueryParam('room')) {
+        window.history.pushState({}, document.title, `?room=${roomId}`);
+      }
+      
+      // Generate a random username if none exists
+      if (!userName) {
+        userName = localStorage.getItem('soundboard-username') || generateUserName();
+        localStorage.setItem('soundboard-username', userName);
+      }
+      
+      // Join the room
+      socket.emit('join-room', {
+        roomId,
+        userName
+      });
+      
+      // Update UI with room info
+      updateRoomInfo();
+      
+      // Socket event listeners
+      socket.on('connect', () => {
+        console.log('Connected to server');
+      });
+      
+      socket.on('disconnect', () => {
+        console.log('Disconnected from server');
+      });
+      
+      socket.on('room-info', (data) => {
+        userCount = data.users;
+        updateRoomInfo();
+      });
+      
+      // Listen for remote sound play events
+      socket.on('play-sound', (data) => {
+        if (data.userId !== socket.id) { // Don't play sounds triggered by ourselves
+          playRemoteSound(data.soundId, data.userName);
+        }
+      });
+    }
+    
+    // Generate a random room ID
+    function generateRoomId() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed similar looking characters
+      let id = '';
+      for (let i = 0; i < 6; i++) {
+        id += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return id;
+    }
+    
+    // Generate a friendly random username
+    function generateUserName() {
+      const adjectives = [
+        'Happy', 'Lucky', 'Sunny', 'Clever', 'Swift', 'Brave', 'Bright', 'Cool', 'Wild', 'Smooth',
+        'Golden', 'Silver', 'Mellow', 'Jolly', 'Epic', 'Mighty', 'Funky', 'Groovy', 'Jazzy', 'Snazzy'
+      ];
+      
+      const nouns = [
+        'Panda', 'Tiger', 'Eagle', 'Dolphin', 'Fox', 'Wizard', 'Ninja', 'Pirate', 'Rocket', 'Dragon',
+        'Phoenix', 'Knight', 'Samurai', 'Hero', 'Cheetah', 'Wolf', 'Shark', 'Lion', 'Falcon', 'Bear'
+      ];
+      
+      const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+      const noun = nouns[Math.floor(Math.random() * nouns.length)];
+      
+      return `${adjective}${noun}`;
+    }
+    
+    // Load favorites from localStorage
+    function loadFavoritesFromStorage() {
+      try {
+        const savedFavorites = localStorage.getItem('soundboard-favorites');
+        if (savedFavorites) {
+          favorites = JSON.parse(savedFavorites);
+          console.log('Loaded favorites from storage:', favorites);
+        } else {
+          favorites = [];
+          console.log('No saved favorites found');
+        }
+      } catch (error) {
+        console.error('Error loading favorites:', error);
+        favorites = [];
+      }
+    }
+    
+    // Get query parameter from URL
+    function getQueryParam(param) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(param);
+    }
+    
+    // Update room info in UI
+    function updateRoomInfo() {
+      console.log('Updating room info, roomId:', roomId);
+      
+      let roomInfo = document.getElementById('room-info');
+      if (roomInfo) {
+        // Clear existing content
+        while (roomInfo.firstChild) {
+          roomInfo.removeChild(roomInfo.firstChild);
+        }
+
+        // Add room info text
+        const roomInfoText = document.createElement('span');
+        // Make sure we display a valid room ID
+        const displayRoomId = roomId || 'Loading...';
+        roomInfoText.textContent = `Room: ${displayRoomId} | Users: ${userCount}`;
+        roomInfo.appendChild(roomInfoText);
+        
+        // Add copy link button
+        const copyButton = document.createElement('button');
+        copyButton.textContent = 'Copy Link';
+        copyButton.style.marginLeft = '10px';
+        copyButton.style.padding = '6px 10px';
+        copyButton.style.background = 'rgba(58, 58, 58, 0.7)';
+        copyButton.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+        copyButton.style.color = '#e0e0e0';
+        copyButton.style.borderRadius = '6px';
+        copyButton.style.cursor = 'pointer';
+        copyButton.style.transition = 'all var(--transition-speed) ease';
+        copyButton.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+        copyButton.style.fontSize = '12px';
+        
+        // Add hover effects to copy button
+        copyButton.onmouseover = () => {
+          copyButton.style.background = 'rgba(70, 70, 70, 0.8)';
+          copyButton.style.transform = 'translateY(-2px)';
+          copyButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+          copyButton.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+        };
+        
+        copyButton.onmouseout = () => {
+          copyButton.style.background = 'rgba(58, 58, 58, 0.7)';
+          copyButton.style.transform = 'translateY(0)';
+          copyButton.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+          copyButton.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+        };
+        
+        copyButton.onclick = () => {
+          const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+          navigator.clipboard.writeText(shareUrl).then(() => {
+            copyButton.textContent = 'Copied!';
+            copyButton.style.background = 'rgba(58, 110, 58, 0.7)';
+            copyButton.style.borderColor = 'rgba(58, 110, 58, 0.3)';
+            copyButton.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.2), 0 0 6px rgba(58, 110, 58, 0.3)';
+            
+            setTimeout(() => {
+              copyButton.textContent = 'Copy Link';
+              copyButton.style.background = 'rgba(58, 58, 58, 0.7)';
+              copyButton.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+              copyButton.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+            }, 2000);
+          });
+        };
+        roomInfo.appendChild(copyButton);
+        
+        // Add join room button with matching style
+        const joinButton = document.createElement('button');
+        joinButton.textContent = 'Join Room';
+        joinButton.style.marginLeft = '10px';
+        joinButton.style.padding = '6px 10px';
+        joinButton.style.background = 'rgba(58, 110, 58, 0.7)';
+        joinButton.style.border = '1px solid rgba(58, 110, 58, 0.3)';
+        joinButton.style.color = '#ffffff';
+        joinButton.style.borderRadius = '6px';
+        joinButton.style.cursor = 'pointer';
+        joinButton.style.transition = 'all var(--transition-speed) ease';
+        joinButton.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+        joinButton.style.fontSize = '12px';
+        
+        // Add hover effects to join button
+        joinButton.onmouseover = () => {
+          joinButton.style.background = 'rgba(70, 130, 70, 0.8)';
+          joinButton.style.transform = 'translateY(-2px)';
+          joinButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3), 0 0 6px rgba(58, 110, 58, 0.3)';
+          joinButton.style.borderColor = 'rgba(58, 110, 58, 0.5)';
+        };
+        
+        joinButton.onmouseout = () => {
+          joinButton.style.background = 'rgba(58, 110, 58, 0.7)';
+          joinButton.style.transform = 'translateY(0)';
+          joinButton.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+          joinButton.style.borderColor = 'rgba(58, 110, 58, 0.3)';
+        };
+        
+        joinButton.onclick = showRoomModal;
+        roomInfo.appendChild(joinButton);
+      } else if (roomId) {
+        // Create room info element if it doesn't exist
+        roomInfo = document.createElement('div');
+        roomInfo.id = 'room-info';
+        roomInfo.style.position = 'fixed';
+        roomInfo.style.bottom = '15px';
+        roomInfo.style.left = '15px';
+        roomInfo.style.background = 'rgba(42, 42, 42, 0.8)';
+        roomInfo.style.backdropFilter = 'blur(var(--blur-amount))';
+        roomInfo.style.WebkitBackdropFilter = 'blur(var(--blur-amount))';
+        roomInfo.style.padding = '10px 15px';
+        roomInfo.style.borderRadius = '8px';
+        roomInfo.style.fontSize = '13px';
+        roomInfo.style.color = 'var(--text-color)';
+        roomInfo.style.zIndex = '1000';
+        roomInfo.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.3)';
+        roomInfo.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+        roomInfo.style.transition = 'all var(--transition-speed) ease';
+        document.body.appendChild(roomInfo);
+        
+        // Call updateRoomInfo again to populate the new element
+        updateRoomInfo();
+      }
+    }
+    
+    // Show notification when someone plays a sound
+    function showNotification(message, type = 'info') {
+      const notificationsContainer = document.getElementById('notifications-container');
+      
+      // Create notification element
+      const notification = document.createElement('div');
+      notification.style.backgroundColor = type === 'info' ? 'rgba(33, 150, 243, 0.9)' : 'rgba(244, 67, 54, 0.9)';
+      notification.style.color = 'white';
+      notification.style.padding = '10px 15px';
+      notification.style.borderRadius = '5px';
+      notification.style.marginBottom = '10px';
+      notification.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+      notification.style.fontSize = '14px';
+      notification.style.transition = 'all 0.3s ease';
+      notification.style.transform = 'translateX(120%)';
+      notification.style.opacity = '0';
+      notification.textContent = message;
+      
+      // Add to container
+      notificationsContainer.appendChild(notification);
+      
+      // Animate in
+      setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+        notification.style.opacity = '1';
+      }, 50);
+      
+      // Remove after delay
+      setTimeout(() => {
+        notification.style.transform = 'translateX(120%)';
+        notification.style.opacity = '0';
+        
+        // Remove from DOM after animation
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 300);
+      }, 3000);
+    }
+    
+    // Play a sound received from another user
+    function playRemoteSound(soundId, userName) {
+      console.log(`Playing remote sound: ${soundId} played by ${userName || 'someone'}`);
+      
+      // The soundId might be the full filename or just the name part
+      // Try different variations to find the audio element
+      let audio = document.querySelector(`audio[data-sound-id="${soundId}"]`);
+      
+      // If not found, try without file extension
+      if (!audio && soundId.includes('.mp3')) {
+        const soundIdWithoutExt = soundId.replace('.mp3', '');
+        audio = document.querySelector(`audio[data-sound-id="${soundIdWithoutExt}"]`);
+        console.log(`Trying without extension: ${soundIdWithoutExt}`);
+      }
+      
+      // If still not found, try with the simple ID
+      if (!audio) {
+        // Check all audios and find one that contains or matches the sound ID
+        const allAudios = document.querySelectorAll('audio[data-sound-id]');
+        for (const a of allAudios) {
+          const sid = a.getAttribute('data-sound-id');
+          if (sid && (sid.includes(soundId) || soundId.includes(sid))) {
+            audio = a;
+            console.log(`Found alternative match: ${sid}`);
+            break;
+          }
+        }
+      }
+      
+      if (!audio) {
+        console.error(`Remote sound not found: ${soundId}`);
+        showNotification(`Error: Could not find sound with ID ${soundId}`, 'error');
+        return;
+      }
+      
+      // Get sound name
+      const soundName = document.querySelector(`.sound-item[data-sound-id="${soundId}"] .sound-name`)?.textContent || soundId;
+      
+      // Show notification about who played the sound
+      showNotification(`${userName || 'Someone'} played "${soundName}"`);
+      
+      // Set volume for remote sound
+      audio.volume = remoteVolume;
+      
+      // Reset to beginning if already playing
+      audio.currentTime = 0;
+      
+      // Add to active audios array for tracking
+      activeAudios.push({
+        element: audio,
+        isLocal: false
+      });
+      
+      // Make visualizer visible when sound plays remotely
+      if (visualizerCanvas) {
+        visualizerCanvas.style.opacity = '0.7';
+      }
+      
+      // Try to connect to visualizer if possible
+      try {
+        if (audioContext && analyser) {
+          connectToVisualizer(audio);
+        }
+      } catch (err) {
+        console.warn('Could not connect remote sound to visualizer:', err);
+      }
+      
+      // Play the sound with proper error handling
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('Error playing remote sound:', error);
+          showNotification(`Failed to play sound "${soundName}": ${error.message}`, 'error');
+          // Remove from active audios if failed
+          activeAudios = activeAudios.filter(a => a.element !== audio);
+        });
+      }
+      
+      // Find and highlight the sound item
+      const soundItem = document.querySelector(`.sound-item[data-sound-id="${soundId}"]`);
+      if (soundItem) {
+        soundItem.classList.add('playing-remote');
+        setTimeout(() => {
+          soundItem.classList.remove('playing-remote');
+        }, 1000);
+      }
+      
+      // When audio ends, clean up
+      audio.onended = () => {
+        activeAudios = activeAudios.filter(a => a.element !== audio);
+        
+        // Hide visualizer if no sounds are playing
+        if (activeAudios.length === 0 && visualizerCanvas) {
+          visualizerCanvas.style.opacity = '0';
+        }
+      };
+    }
+    
+    // Wait for document to be ready before initializing
+    // Function to load sounds from the server
+    function loadSounds() {
+      const soundsContainer = document.getElementById('sounds-container');
+      if (!soundsContainer) return;
+      
+      // Initialize smooth scrolling for the sounds container
+      let isScrolling = false;
+      let startY = 0;
+      let startScrollTop = 0;
+      let scrollAnimation = null;
+      let scrollMomentum = 0;
+      let lastScrollTop = 0;
+      let lastScrollTime = 0;
+      
+      // Set up custom scroll handlers with enhanced visual feedback
+      soundsContainer.addEventListener('mousedown', function(e) {
+        // Allow both middle mouse button and left button with Alt key for scrolling
+        if (e.button === 1 || (e.button === 0 && e.altKey)) {
+          e.preventDefault();
+          isScrolling = true;
+          startY = e.clientY;
+          startScrollTop = soundsContainer.scrollTop;
+          
+          // Visual feedback
+          document.body.style.cursor = 'grabbing';
+          soundsContainer.classList.add('smooth-scrolling');
+          
+          // Add a subtle glow effect based on scroll direction
+          const root = document.documentElement;
+          root.style.setProperty('--glow-color', 'rgba(100, 180, 255, 0.5)');
+          
+          // Cancel any existing animation
+          if (scrollAnimation) {
+            cancelAnimationFrame(scrollAnimation);
+          }
+        }
+      }, { passive: false });
+      
+      document.addEventListener('mousemove', function(e) {
+        if (!isScrolling) return;
+        
+        const deltaY = startY - e.clientY;
+        const newScrollTop = startScrollTop + deltaY * 1.5; // Adjust sensitivity
+        soundsContainer.scrollTop = newScrollTop;
+        
+        // Calculate momentum
+        const now = Date.now();
+        const timeDelta = now - lastScrollTime;
+        if (timeDelta > 0) {
+          const scrollDelta = soundsContainer.scrollTop - lastScrollTop;
+          scrollMomentum = scrollDelta / timeDelta * 15; // Adjust momentum factor
+        }
+        
+        lastScrollTop = soundsContainer.scrollTop;
+        lastScrollTime = now;
+      });
+      
+      document.addEventListener('mouseup', function() {
+        if (!isScrolling) return;
+        
+        isScrolling = false;
+        document.body.style.cursor = '';
+        
+        // Apply momentum scrolling
+        const applyMomentum = () => {
+          if (Math.abs(scrollMomentum) < 0.1) {
+            soundsContainer.classList.remove('smooth-scrolling');
+            return;
+          }
+          
+          scrollMomentum *= 0.95; // Friction factor
+          soundsContainer.scrollTop += scrollMomentum;
+          scrollAnimation = requestAnimationFrame(applyMomentum);
+        };
+        
+        applyMomentum();
+      });
+      
+      // Touch support for mobile devices
+      soundsContainer.addEventListener('touchstart', function(e) {
+        if (e.touches.length !== 1) return; // Only handle single touch
+        
+        isScrolling = true;
+        startY = e.touches[0].clientY;
+        startScrollTop = soundsContainer.scrollTop;
+        soundsContainer.classList.add('smooth-scrolling');
+        
+        // Cancel any existing animation
+        if (scrollAnimation) {
+          cancelAnimationFrame(scrollAnimation);
+        }
+      }, { passive: true });
+      
+      soundsContainer.addEventListener('touchmove', function(e) {
+        if (!isScrolling || e.touches.length !== 1) return;
+        
+        const touch = e.touches[0];
+        const deltaY = startY - touch.clientY;
+        const newScrollTop = startScrollTop + deltaY * 1.5; // Adjust sensitivity
+        
+        // Calculate momentum for smooth deceleration
+        const now = Date.now();
+        const timeDelta = now - lastScrollTime;
+        if (timeDelta > 0) {
+          const scrollDelta = soundsContainer.scrollTop - lastScrollTop;
+          scrollMomentum = scrollDelta / timeDelta * 15; // Momentum factor
+        }
+        
+        // Apply the scroll
+        soundsContainer.scrollTop = newScrollTop;
+        lastScrollTop = soundsContainer.scrollTop;
+        lastScrollTime = now;
+      }, { passive: true });
+      
+      soundsContainer.addEventListener('touchend', function() {
+        if (!isScrolling) return;
+        
+        isScrolling = false;
+        
+        // Apply momentum with touch inertia
+        const applyTouchMomentum = () => {
+          if (Math.abs(scrollMomentum) < 0.1) {
+            soundsContainer.classList.remove('smooth-scrolling');
+            return;
+          }
+          
+          // Apply slightly smoother deceleration for touch
+          scrollMomentum *= 0.92; // Friction factor
+          soundsContainer.scrollTop += scrollMomentum;
+          scrollAnimation = requestAnimationFrame(applyTouchMomentum);
+        };
+        
+        applyTouchMomentum();
+      }, { passive: true });
+      
+      // Mouse wheel smooth scrolling
+      soundsContainer.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        
+        // Add visual feedback with glow effect
+        soundsContainer.classList.add('smooth-scrolling');
+        
+        // Cancel existing animation if any
+        if (scrollAnimation) {
+          cancelAnimationFrame(scrollAnimation);
+        }
+        
+        // Apply scroll with physics-based momentum
+        const delta = e.deltaY;
+        const direction = delta > 0 ? 1 : -1;
+        const acceleration = Math.min(Math.abs(delta) * 0.2, 20) * direction; // Cap acceleration
+        
+        // Add to existing momentum for more natural feel
+        scrollMomentum += acceleration;
+        
+        // Cap maximum momentum
+        const maxMomentum = 40;
+        if (Math.abs(scrollMomentum) > maxMomentum) {
+          scrollMomentum = maxMomentum * (scrollMomentum > 0 ? 1 : -1);
+        }
+        
+        // Start momentum scrolling animation
+        function applyWheelMomentum() {
+          if (Math.abs(scrollMomentum) < 0.5) {
+            scrollMomentum = 0;
+            // Remove visual effects after scrolling stops
+            setTimeout(() => {
+              soundsContainer.classList.remove('smooth-scrolling');
+            }, 200);
+            return;
+          }
+          
+          // Apply physics-based deceleration
+          scrollMomentum *= 0.92; // Adjust for desired friction
+          soundsContainer.scrollTop += scrollMomentum;
+          
+          // Continue animation loop
+          scrollAnimation = requestAnimationFrame(applyWheelMomentum);
+        }
+        
+        // Start the animation
+        if (!isScrolling) {
+          applyWheelMomentum();
+        }
+      }, { passive: false });
+      
+      console.log('Smooth scrolling initialized');
+    }
+    
+    // Main initialization when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('Document ready, initializing soundboard app...');
+      
+      // First initialize the room and user info
+      roomId = getQueryParam('room') || generateRoomId();
+      userName = localStorage.getItem('soundboard-username') || generateUserName();
+      localStorage.setItem('soundboard-username', userName);
+      console.log('Room ID initialized to:', roomId);
+      console.log('Username initialized to:', userName);
+      
+      // Load saved favorites
+      try {
+        const savedFavorites = localStorage.getItem('soundboard-favorites');
+        if (savedFavorites) {
+          favorites = JSON.parse(savedFavorites);
+        }
+      } catch (error) {
+        console.error('Error loading favorites:', error);
+      }
+      
+      // Initialize Socket.IO connection for multiplayer
+      initializeSocketIO();
+      
+      // Load sounds from the server
+      loadSounds();
+      
+      // Make sure room info is displayed
+      setTimeout(updateRoomInfo, 500);
+      
+      // Set up room modal functionality
+      setupRoomModal();
+      
+      const soundsContainer = document.getElementById('sounds-container');
+      const stopButton = document.getElementById('stop-button');
+      const localVolumeSlider = document.getElementById('local-volume');
+      const remoteVolumeSlider = document.getElementById('remote-volume');
+      const tabButtons = document.querySelectorAll('.tab');
+      const sidebarButtons = document.querySelectorAll('.sidebar-button');
+      
+      // Initialize Socket.IO for multiplayer
+      initializeSocketIO();
+      
+      // Add double-click event to visualizer canvas to change mode
+      document.getElementById('visualizer').addEventListener('dblclick', (e) => {
+        // Change mode if right side, change color if left side
+        if (e.clientX > window.innerWidth / 2) {
+          changeVisualizerMode();
+        } else {
+          changeVisualizerColor();
+        }
+      });
+      
+      // Initialize volume controls
+      localVolumeSlider.addEventListener('input', (e) => {
+        localVolume = e.target.value / 100;
+        // Update volume for all currently playing local sounds
+        activeAudios.forEach(audio => {
+          if (audio.isLocal) {
+            audio.element.volume = localVolume;
+          }
+        });
+      });
+      
+      remoteVolumeSlider.addEventListener('input', (e) => {
+        remoteVolume = e.target.value / 100;
+        // Update volume for all currently playing remote sounds
+        activeAudios.forEach(audio => {
+          if (!audio.isLocal) {
+            audio.element.volume = remoteVolume;
+          }
+        });
+      });
+      
+      // Initialize stop button
+      stopButton.addEventListener('click', () => {
+        stopAllSounds();
+        isPlaying = false;
+        stopButton.classList.remove('active');
+      });
+      
+      // Initialize tab buttons
+      tabButtons.forEach((tab, index) => {
+        tab.addEventListener('click', () => {
+          // Remove active class from all tabs
+          tabButtons.forEach(t => t.classList.remove('active'));
+          // Add active class to clicked tab
+          tab.classList.add('active');
+          activeTab = index + 1;
+          // Implement filtering logic here based on tab
+        });
+      });
+      
+      // Initialize sidebar buttons
+      sidebarButtons.forEach((button, index) => {
+        const buttonText = button.textContent.trim();
+        
+        button.addEventListener('click', () => {
+          switch (buttonText) {
+            case 'RELOAD':
+              location.reload();
+              break;
+              
+            case 'DOWNLOADER':
+              // Show downloader interface
+              showDownloader();
+              break;
+              
+            case 'FAVORITES':
+              // Toggle favorites mode
+              button.classList.toggle('active');
+              showFavorites(button.classList.contains('active'));
+              break;
+              
+            case 'PLAYLIST MODE':
+              // Toggle playlist mode
+              isInPlaylistMode = !isInPlaylistMode;
+              button.classList.toggle('active');
+              break;
+              
+            case 'PASS THROUGH':
+              // Toggle pass through mode
+              isPassThrough = !isPassThrough;
+              button.classList.toggle('active');
+              break;
+              
+            case 'SEARCH':
+              const searchTerm = prompt('Enter search term:');
+              if (searchTerm) {
+                searchSounds(searchTerm);
+              }
+              break;
+              
+            case 'SORT':
+              sortSounds();
+              break;
+              
+            // Other cases can be added for remaining buttons
+          }
+        });
+      });
+      
+      // Function to stop all sounds
+      function stopAllSounds() {
+        activeAudios.forEach(audio => {
+          audio.element.pause();
+          audio.element.currentTime = 0;
+        });
+        activeAudios = [];
+        
+        // Remove playing class from all sound items
+        document.querySelectorAll('.sound-item').forEach(item => {
+          item.classList.remove('playing');
+        });
+        
+        // Hide visualizer when all sounds are stopped
+        if (visualizerCanvas) {
+          visualizerCanvas.style.opacity = '0';
+        }
+      }
+      
+      // Function to show only favorites
+      function showFavorites(showOnlyFavorites) {
+        document.querySelectorAll('.sound-item').forEach(item => {
+          const soundId = item.getAttribute('data-sound-id');
+          
+          if (showOnlyFavorites) {
+            item.style.display = favorites.includes(soundId) ? 'flex' : 'none';
+          } else {
+            item.style.display = 'flex';
+          }
+        });
+      }
+      
+      // Function to search sounds
+      function searchSounds(term) {
+        const lowerTerm = term.toLowerCase();
+        document.querySelectorAll('.sound-item').forEach(item => {
+          const soundName = item.querySelector('.sound-name').textContent.toLowerCase();
+          item.style.display = soundName.includes(lowerTerm) ? 'flex' : 'none';
+        });
+      }
+      
+      // Function to sort sounds alphabetically
+      function sortSounds() {
+        const items = Array.from(document.querySelectorAll('.sound-item'));
+        items.sort((a, b) => {
+          const nameA = a.querySelector('.sound-name').textContent.toLowerCase();
+          const nameB = b.querySelector('.sound-name').textContent.toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+        
+        // Clear container and append sorted items
+        soundsContainer.innerHTML = '';
+        items.forEach(item => soundsContainer.appendChild(item));
+      }
+      
+      // Function to show the downloader interface
+      function showDownloader() {
+        const downloaderModal = document.getElementById('downloader-modal');
+        const downloadList = document.getElementById('download-list');
+        const closeButton = document.getElementById('close-downloader');
+        const downloadUrlButton = document.getElementById('download-url-button');
+        const downloadStatus = document.getElementById('download-status');
+        
+        // Show the modal
+        downloaderModal.style.display = 'flex';
+        
+        // Clear the download list
+        downloadList.innerHTML = '';
+        
+        // Populate the download list with existing sounds
+        fetch(`${serverUrl}/api/sounds`)
+          .then(response => response.json())
+          .then(sounds => {
+            sounds.forEach(sound => {
+              const downloadItem = document.createElement('div');
+              downloadItem.style.display = 'flex';
+              downloadItem.style.justifyContent = 'space-between';
+              downloadItem.style.alignItems = 'center';
+              downloadItem.style.marginBottom = '8px';
+              downloadItem.style.padding = '8px';
+              downloadItem.style.backgroundColor = '#333';
+              downloadItem.style.borderRadius = '4px';
+              
+              const soundName = document.createElement('span');
+              soundName.textContent = sound.name;
+              
+              const downloadButton = document.createElement('a');
+              downloadButton.textContent = 'Download';
+              downloadButton.href = `${serverUrl}/sounds/${sound.file}`;
+              downloadButton.download = sound.file;
+              downloadButton.style.color = '#4CAF50';
+              downloadButton.style.textDecoration = 'none';
+              
+              downloadItem.appendChild(soundName);
+              downloadItem.appendChild(downloadButton);
+              downloadList.appendChild(downloadItem);
+            });
+          })
+          .catch(error => {
+            downloadList.innerHTML = `<p>Error loading sounds: ${error.message}</p>`;
+          });
+        
+        // Close button event
+        closeButton.onclick = () => {
+          downloaderModal.style.display = 'none';
+        };
+        
+        // Click outside to close
+        downloaderModal.onclick = (event) => {
+          if (event.target === downloaderModal) {
+            downloaderModal.style.display = 'none';
+          }
+        };
+        
+        // Download from URL
+        downloadUrlButton.onclick = () => {
+          const url = document.getElementById('sound-url').value.trim();
+          const name = document.getElementById('sound-name').value.trim() || 'New Sound';
+          
+          if (!url) {
+            downloadStatus.textContent = 'Please enter a URL';
+            downloadStatus.style.color = '#ff5555';
+            return;
+          }
+          
+          downloadStatus.textContent = 'Downloading...';
+          downloadStatus.style.color = '#e0e0e0';
+          
+          downloadSound(url, name);
+        };
+      }
+      
+      // Function to download a sound from URL
+      function downloadSound(url, name) {
+        const downloadStatus = document.getElementById('download-status');
+        const sanitizedName = name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+        const fileName = `${sanitizedName}.mp3`;
+        
+        // Create a temporary anchor for downloading
+        const downloadLink = document.createElement('a');
+        downloadLink.href = url;
+        downloadLink.download = fileName;
+        
+        // Attempt to fetch the file first to validate it
+        fetch(url)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+            }
+            return response.blob();
+          })
+          .then(blob => {
+            // Create object URL from blob
+            const objectUrl = URL.createObjectURL(blob);
+            
+            // Set link properties and click it
+            downloadLink.href = objectUrl;
+            downloadLink.download = fileName;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            
+            // Clean up
+            document.body.removeChild(downloadLink);
+            URL.revokeObjectURL(objectUrl);
+            
+            downloadStatus.textContent = `Downloaded ${name} successfully!`;
+            downloadStatus.style.color = '#4CAF50';
+            
+            // Let user know they'll need to refresh to see the new sound
+            setTimeout(() => {
+              downloadStatus.textContent = 'Refresh the page to see new sounds';
+            }, 3000);
+          })
+          .catch(error => {
+            console.error('Download error:', error);
+            downloadStatus.textContent = `Error: ${error.message}`;
+            downloadStatus.style.color = '#ff5555';
+          });
+      }
+      
+      // Get the current server port from the URL
+      const serverPort = window.location.port || '3001';
+      const serverUrl = `${window.location.protocol}//${window.location.hostname}:${serverPort}`;
+      console.log('Server URL:', serverUrl);
+      
+      // Fetch sounds from the server
+      fetch(`${serverUrl}/api/sounds`)
+        .then(response => response.json())
+        .then(sounds => {
+          sounds.forEach(sound => {
+            const soundItem = document.createElement('div');
+            soundItem.className = 'sound-item';
+            soundItem.setAttribute('data-sound-id', sound.id);
+            
+            const soundName = document.createElement('div');
+            soundName.className = 'sound-name';
+            soundName.textContent = sound.name;
+            
+            const soundActions = document.createElement('div');
+            soundActions.className = 'sound-actions';
+            
+            const favoriteButton = document.createElement('button');
+            favoriteButton.className = 'favorite-button';
+            favoriteButton.innerHTML = '♥';
+            
+            const playButton = document.createElement('button');
+            playButton.className = 'edit-button';
+            playButton.innerHTML = '▶';
+            
+            soundActions.appendChild(favoriteButton);
+            soundActions.appendChild(playButton);
+            
+            soundItem.appendChild(soundName);
+            soundItem.appendChild(soundActions);
+            
+            // Create audio element and preload it
+            const audio = new Audio(`${serverUrl}/sounds/${sound.file}`);
+            audio.preload = 'auto';
+            audio.setAttribute('data-sound-id', sound.id); // Add sound ID for remote playback
+            
+            // Flag to track if this audio has been connected to visualizer
+            let isConnectedToVisualizer = false;
+            
+            // Add favorite functionality
+            favoriteButton.addEventListener('click', (event) => {
+              event.stopPropagation();
+              const soundId = sound.id;
+              
+              if (favorites.includes(soundId)) {
+                // Remove from favorites
+                favorites = favorites.filter(id => id !== soundId);
+                favoriteButton.classList.remove('active');
+              } else {
+                // Add to favorites
+                favorites.push(soundId);
+                favoriteButton.classList.add('active');
+              }
+              
+              // Save favorites to localStorage
+              localStorage.setItem('soundboard-favorites', JSON.stringify(favorites));
+            });
+            
+            // Load favorites from localStorage
+            try {
+              const savedFavorites = localStorage.getItem('soundboard-favorites');
+              if (savedFavorites) {
+                favorites = JSON.parse(savedFavorites);
+                if (favorites.includes(sound.id)) {
+                  favoriteButton.classList.add('active');
+                }
+              }
+            } catch (e) {
+              console.error('Error loading favorites:', e);
+            }
+            
+            // Add click handler to play sound
+            soundName.addEventListener('click', () => {
+              console.log('Playing sound:', `${serverUrl}/sounds/${sound.file}`);
+              
+              // Always allow multiple sounds to play together
+              // We'll keep the playlist mode toggle for other functionality
+              
+              // Reset the audio to the beginning if it's already playing
+              audio.currentTime = 0;
+              
+              // Set volume based on local/remote setting
+              audio.volume = localVolume;
+              
+              // Add to active audios list
+              activeAudios.push({
+                element: audio,
+                soundId: sound.id,
+                isLocal: true
+              });
+              
+              // Update UI
+              isPlaying = true;
+              stopButton.classList.add('active');
+              soundItem.classList.add('playing');
+              
+              // Initialize audio visualizer if needed and connect this audio
+              if (!isConnectedToVisualizer) {
+                // Check if AudioContext is suspended (browser policy) and resume it
+                if (visualizerInitialized && audioContext && audioContext.state === 'suspended') {
+                  audioContext.resume();
+                }
+                
+                try {
+                  connectToVisualizer(audio);
+                  isConnectedToVisualizer = true;
+                } catch (err) {
+                  console.warn('Could not connect to visualizer:', err);
+                  // Continue playing even if visualizer fails
+                }
+              }
+              
+              // Play the sound with error handling
+              const playPromise = audio.play();
+              
+              if (playPromise !== undefined) {
+                playPromise
+                  .then(() => {
+                    console.log('Audio playback started successfully');
+                    
+                    // Make visualizer visible when sound plays
+                    if (visualizerCanvas) {
+                      visualizerCanvas.style.opacity = '0.7';
+                    }
+                    
+                    // Emit socket event for multiplayer
+                    if (socket && socket.connected) {
+                      // Make sure room ID is defined before emitting
+                      if (roomId) {
+                        // Get the most consistent ID for the sound
+                        const soundId = sound.id || sound.getAttribute('data-sound-id') || soundItem.getAttribute('data-sound-id');
+                        
+                        if (soundId) {
+                          socket.emit('play-sound', {
+                            roomId,
+                            soundId, // Use the normalized sound ID
+                            timestamp: Date.now()
+                          });
+                          console.log(`Emitted play-sound event for ${soundId} to room ${roomId}`);
+                        } else {
+                          console.error('Cannot emit play-sound: soundId is undefined', sound);
+                        }
+                      } else {
+                        console.error('Cannot emit play-sound: roomId is undefined');
+                        // Try to reconnect to a room if needed
+                        roomId = getQueryParam('room') || generateRoomId();
+                        console.log('Reconnecting to room:', roomId);
+                        socket.emit('join-room', {
+                          roomId,
+                          userName
+                        });
+                      }
+                    }
+                    
+                    // Add visual feedback that fades after a while
+                    setTimeout(() => {
+                      if (!isInPlaylistMode) {
+                        soundItem.classList.remove('playing');
+                      }
+                    }, 1000);
+                    
+                    // When audio ends, clean up
+                    audio.onended = () => {
+                      soundItem.classList.remove('playing');
+                      activeAudios = activeAudios.filter(a => a.element !== audio);
+                      
+                      if (activeAudios.length === 0) {
+                        isPlaying = false;
+                        stopButton.classList.remove('active');
+                        
+                        // Fade out visualizer when no sounds are playing
+                        if (visualizerCanvas) {
+                          visualizerCanvas.style.opacity = '0';
+                        }
+                      }
+                    };
+                  })
+                  .catch(error => {
+                    console.error('Audio playback failed:', error);
+                    soundItem.classList.remove('playing');
+                    // Show error in diagnostics instead of alert
+                    const diagnosticContent = document.getElementById('diagnostic-content');
+                    if (diagnosticContent) {
+                      document.getElementById('diagnostics').style.display = 'block';
+                      diagnosticContent.innerHTML = `<p>❌ Audio playback failed: ${error.message}</p>`;
+                    }
+                  });
+              }
+            });
+            
+            // Add click handler for play button too
+            playButton.addEventListener('click', (event) => {
+              event.stopPropagation(); // Prevent triggering the soundName click
+              soundName.click(); // Reuse the same click handler
+            });
+            
+            soundsContainer.appendChild(soundItem);
+          });
+        })
+        .catch(error => {
+          console.error('Error fetching sounds:', error);
+          soundsContainer.innerHTML = `<p>Error loading sounds: ${error.message}</p>`;
+        });
+    });
+    // Simplest possible scrolling solution
+    document.addEventListener('DOMContentLoaded', function() {
+      // Direct style application to sounds container
+      const soundsContainer = document.getElementById('sounds-container');
+      if (soundsContainer) {
+        soundsContainer.style.height = '600px';
+        soundsContainer.style.overflowY = 'scroll';
+      }
+    });
+  </script>
+</body>
+</html>
