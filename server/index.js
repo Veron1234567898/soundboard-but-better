@@ -5,11 +5,12 @@ const { Server } = require('socket.io');
 const fs = require('fs');
 const cors = require('cors');
 
+// Initialize Express app
 const app = express();
 const server = http.createServer(app);
 
-// Get port from environment variable or use 3001 as default
-const PORT = process.env.PORT || 3001;
+// Get port from environment variable or use 10000 as default (matching render.yaml)
+const PORT = process.env.PORT || 10000;
 
 // Configure CORS for production and development
 const io = new Server(server, {

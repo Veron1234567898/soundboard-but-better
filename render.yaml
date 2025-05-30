@@ -4,24 +4,31 @@ services:
   - type: web
     name: soundboard-backend
     env: node
-    buildCommand: cd server && npm install
+    buildCommand: |
+      echo "Installing backend dependencies..."
+      cd server
+      npm install
     startCommand: node index.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      - key: NPM_CONFIG_PRODUCTION
+        value: 'false'
     plan: free
-    region: oregon  # Specify a valid region
+    region: oregon
 
   # Frontend Service (Static Site)
   - type: web
     name: soundboard-frontend
     env: static
     buildCommand: |
+      echo "Installing frontend dependencies..."
       cd client
       npm install
       npm run build
+      echo "Frontend build complete"
     staticPublishPath: ./client/dist
     envVars:
       - key: REACT_APP_API_URL
