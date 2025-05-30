@@ -1,5 +1,5 @@
-module.exports = {
-  plugins: [
-    require('autoprefixer')
-  ]
-}
+const autoprefixer = require('autoprefixer');
+
+export default {
+  plugins: [autoprefixer]
+};
