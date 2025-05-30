@@ -6,19 +6,28 @@
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "socket.io-client": "^4.7.2",
     "react-icons": "^4.11.0",
     "react-router-dom": "^6.16.0",
+    "socket.io-client": "^4.7.2",
     "uuid": "^9.0.0"
   },
   "scripts": {
-    "start": "parcel src/index.html",
+    "start": "parcel serve src/index.html --port $PORT",
     "build": "parcel build src/index.html --public-url ./",
     "dev": "parcel src/index.html"
   },
+  "browser": {
+    "module": "src/index.js"
+  },
+  "alias": {
+    "react": "react",
+    "react-dom": "react-dom"
+  },
   "devDependencies": {
     "@parcel/transformer-sass": "^2.9.3",
+    "autoprefixer": "^10.4.21",
     "parcel": "^2.9.3",
+    "postcss": "^8.5.4",
     "process": "^0.11.10"
   },
   "browserslist": [

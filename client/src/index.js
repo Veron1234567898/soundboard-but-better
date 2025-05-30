@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
-import './App.css';
+import './App.css'; // Keep this import if you have global styles
 
 const root = createRoot(document.getElementById('root'));
 root.render(
