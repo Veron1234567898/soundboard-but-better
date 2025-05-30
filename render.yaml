@@ -27,6 +27,8 @@ services:
       cd client
       npm install
       npm run build
+      # Ensure the dist directory exists
+      mkdir -p dist
       echo "Frontend build complete"
     staticPublishPath: ./client/dist
     envVars:

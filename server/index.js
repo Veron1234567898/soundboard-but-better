@@ -45,9 +45,27 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files from the React app in production
+// Serve static files from the Parcel build output in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
+  // Try both possible build directories
+  const buildPath = path.join(__dirname, '../client/dist');
+  if (fs.existsSync(buildPath)) {
+    app.use(express.static(buildPath));
+    console.log(`Serving static files from ${buildPath}`);
+  } else {
+    const oldBuildPath = path.join(__dirname, '../client/build');
+    if (fs.existsSync(oldBuildPath)) {
+      app.use(express.static(oldBuildPath));
+      console.log(`Serving static files from ${oldBuildPath}`);
+    } else {
+      console.error('Could not find client build directory');
+    }
+  }
+  
+  // Handle SPA routing by serving index.html for all other routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  });
 }
 
 // Serve uploaded sounds
