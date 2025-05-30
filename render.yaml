@@ -5,10 +5,9 @@ services:
     name: soundboard-backend
     env: node
     buildCommand: |
-      echo "Installing backend dependencies..."
-      cd server
-      npm install
-    startCommand: node index.js
+      echo "Installing dependencies..."
+      npm install --prefix server
+    startCommand: node server/index.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -20,16 +19,14 @@ services:
     region: oregon
 
   # Frontend Service (Static Site)
-  - type: web
+  - type: static_site
     name: soundboard-frontend
-    env: static
     buildCommand: |
       echo "Installing frontend dependencies..."
-      cd client
-      npm install
-      npm run build
+      npm install --prefix client
+      npm run build --prefix client
       echo "Frontend build complete"
-    staticPublishPath: ./client/dist
+    publish: client/dist
     envVars:
       - key: REACT_APP_API_URL
         value: https://soundboard-backend.onrender.com

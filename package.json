@@ -15,7 +15,7 @@
     "start:client": "cd client && npm start",
     "start": "npm-run-all --parallel start:server start:client",
     "build": "npm run build:client",
-    "heroku-postbuild": "npm run install:all && npm run build"
+    "postinstall": "npm run install:all"
   },
   "engines": {
     "node": ">=14.0.0",
