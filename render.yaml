@@ -14,7 +14,7 @@ services:
     plan: free
     region: oregon  # Specify a valid region
 
-  # Frontend Service (Web)
+  # Frontend Service (Static Site)
   - type: web
     name: soundboard-frontend
     env: static
@@ -26,4 +26,3 @@ services:
     envVars:
       - key: REACT_APP_API_URL
         value: https://soundboard-backend.onrender.com
-    region: oregon  # Specify a valid region
