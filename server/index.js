@@ -13,53 +13,35 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 10000;
 
 // Configure CORS for production and development
-const allowedOrigins = [
-  'https://049be9b9-7c75-410e-b625-83add43ee7d1-00-jxxxnpmd2yi.sisko.replit.dev',
-  'http://localhost:3000',
-  'http://localhost:3001'
-];
-
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
-    methods: ['GET', 'POST'],
-    credentials: true
+    origin: process.env.NODE_ENV === 'production' 
+      ? ['https://soundboard-frontend.onrender.com', 'http://localhost:3000']
+      : '*',
+    methods: ['GET', 'POST']
   }
 });
 
 // Enable CORS
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: true,
-  preflightContinue: false,
-  optionsSuccessStatus: 204
+  origin: process.env.NODE_ENV === 'production'
+    ? ['https://soundboard-frontend.onrender.com', 'http://localhost:3000']
+    : '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 // Add headers middleware
 app.use((req, res, next) => {
-  const requestOrigin = req.headers.origin;
-  if (allowedOrigins.includes(requestOrigin)) {
-    res.header('Access-Control-Allow-Origin', requestOrigin);
-  }
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? ['https://soundboard-frontend.onrender.com', 'http://localhost:3000']
+    : '*';
+    
+  res.header('Access-Control-Allow-Origin', allowedOrigins);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Handle preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
   next();
 });
 
