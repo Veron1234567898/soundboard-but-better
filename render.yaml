@@ -14,10 +14,14 @@ services:
     plan: free
     region: oregon  # Specify a valid region
 
-  # Frontend Service (Static Site)
-  - type: static_site
+  # Frontend Service (Web)
+  - type: web
     name: soundboard-frontend
-    buildCommand: cd client && npm install && npm run build
+    env: static
+    buildCommand: |
+      cd client
+      npm install
+      npm run build
     staticPublishPath: ./client/dist
     envVars:
       - key: REACT_APP_API_URL
