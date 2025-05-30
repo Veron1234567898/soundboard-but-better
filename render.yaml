@@ -19,14 +19,16 @@ services:
     region: oregon
 
   # Frontend Service (Static Site)
-  - type: static_site
+  - type: web
     name: soundboard-frontend
+    env: static
     buildCommand: |
       echo "Installing frontend dependencies..."
-      npm install --prefix client
-      npm run build --prefix client
+      cd client
+      npm install
+      npm run build
       echo "Frontend build complete"
-    publish: client/dist
+    staticPublishPath: ./client/dist
     envVars:
       - key: REACT_APP_API_URL
         value: https://soundboard-backend.onrender.com
