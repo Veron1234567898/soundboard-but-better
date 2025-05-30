@@ -4,14 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   plugins: [
-    react({
-      jsxImportSource: 'react',
-      babel: {
-        plugins: [],
-      },
-    })
+    react() // Use default React plugin configuration
   ],
-  // Remove PostCSS configuration to use Vite's defaults
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -38,9 +32,6 @@ export default defineConfig({
     },
   },
   define: {
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
-  },
-  esbuild: {
-    jsxInject: `import React from 'react'`
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production')
   }
 });
