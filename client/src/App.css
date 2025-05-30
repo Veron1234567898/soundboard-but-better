@@ -1,8 +1,15 @@
 /* Basic styles for the Soundboard app */
 
+body {
+  background-color: #121212;
+  color: #e0e0e0;
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
 .soundboard-container {
   padding: 20px;
-  font-family: Arial, sans-serif;
 }
 
 .controls-container {
@@ -36,21 +43,29 @@
 
 .tabs-container {
   margin-bottom: 20px;
+  display: flex;
+  gap: 5px;
 }
 
 .tab {
   padding: 8px 12px;
-  margin-right: 5px;
   cursor: pointer;
-  border: 1px solid #ccc;
-  background-color: #f5f5f5;
+  border: 1px solid #444;
+  background-color: #252525;
+  color: #e0e0e0;
   border-radius: 4px;
+  user-select: none;
+  transition: background-color 0.3s ease;
 }
 
 .tab.active {
   background-color: #007bff;
   color: white;
   border-color: #007bff;
+}
+
+.tab:hover:not(.active) {
+  background-color: #404040;
 }
 
 .sounds-container {
@@ -60,11 +75,18 @@
 }
 
 .sound-item {
-  border: 1px solid #ddd;
+  border: 1px solid #444;
   padding: 10px;
   width: 150px;
   border-radius: 4px;
   cursor: pointer;
+  background-color: #1e1e1e;
+  color: #e0e0e0;
+  transition: background-color 0.3s ease;
+}
+
+.sound-item:hover {
+  background-color: #333;
 }
 
 .sound-name {
@@ -78,7 +100,7 @@
 }
 
 .favorite-button.active {
-  color: red;
+  color: #ff5555;
 }
 
 .sidebar-container {
@@ -90,10 +112,17 @@
 
 .sidebar-button {
   padding: 8px 12px;
-  border: 1px solid #ccc;
-  background-color: #eee;
+  border: 1px solid #444;
+  background-color: #252525;
+  color: #e0e0e0;
   border-radius: 4px;
   cursor: pointer;
+  user-select: none;
+  transition: background-color 0.3s ease;
+}
+
+.sidebar-button:hover {
+  background-color: #404040;
 }
 
 .sidebar-button.active {
@@ -105,11 +134,13 @@
 .room-info {
   margin-top: 20px;
   font-weight: bold;
+  color: #e0e0e0;
 }
 
 .home-container {
   padding: 40px;
   text-align: center;
+  color: #e0e0e0;
 }
 
 .room-actions {
@@ -120,6 +151,16 @@
   padding: 10px 20px;
   font-size: 16px;
   cursor: pointer;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  user-select: none;
+  transition: background-color 0.3s ease;
+}
+
+.create-room-button:hover {
+  background-color: #0056b3;
 }
 
 .join-room-form input {
@@ -127,10 +168,24 @@
   font-size: 16px;
   width: 200px;
   margin-right: 10px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background-color: #1e1e1e;
+  color: #e0e0e0;
 }
 
 .join-room-form button {
   padding: 8px 16px;
   font-size: 16px;
   cursor: pointer;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  user-select: none;
+  transition: background-color 0.3s ease;
+}
+
+.join-room-form button:hover {
+  background-color: #0056b3;
 }
