@@ -12,14 +12,14 @@ services:
       - key: PORT
         value: 10000
     plan: free
+    region: oregon  # Specify a valid region
 
   # Frontend Service (Static Site)
-  - type: web
+  - type: static_site
     name: soundboard-frontend
-    env: static
     buildCommand: cd client && npm install && npm run build
     staticPublishPath: ./client/dist
     envVars:
       - key: REACT_APP_API_URL
         value: https://soundboard-backend.onrender.com
-    plan: free
+    region: oregon  # Specify a valid region
