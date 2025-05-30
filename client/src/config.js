@@ -1,3 +1,7 @@
-const API_URL = process.env.REACT_APP_API_URL || 'https://4bd256b4-51f9-4102-a170-5606baa1da5b-00-2scobb2uzgcy4.pike.replit.dev';
+// In development, use the proxy defined in package.json (http://localhost:3001)
+// In production, use the Render backend URL
+const API_URL = process.env.NODE_ENV === 'production'
+  ? 'https://soundboard-backend.onrender.com'
+  : 'http://localhost:3001';
 
 export { API_URL };

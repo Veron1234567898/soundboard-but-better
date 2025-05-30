@@ -7,30 +7,50 @@ const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
+
+// Get port from environment variable or use 3001 as default
+const PORT = process.env.PORT || 3001;
+
+// Configure CORS for production and development
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: process.env.NODE_ENV === 'production' 
+      ? ['https://soundboard-frontend.onrender.com', 'http://localhost:3000']
+      : '*',
     methods: ['GET', 'POST']
   }
 });
 
-// Enable CORS with more options
+// Enable CORS
 app.use(cors({
-  origin: '*',
+  origin: process.env.NODE_ENV === 'production'
+    ? ['https://soundboard-frontend.onrender.com', 'http://localhost:3000']
+    : '*',
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
-// Add headers middleware for older browsers
+// Add headers middleware
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? ['https://soundboard-frontend.onrender.com', 'http://localhost:3000']
+    : '*';
+    
+  res.header('Access-Control-Allow-Origin', allowedOrigins);
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
   next();
 });
 
-// Serve static files
-app.use(express.static(path.join(__dirname, '../public')));
+// Serve static files from the React app in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/build')));
+}
+
+// Serve uploaded sounds
+app.use('/sounds', express.static(path.join(__dirname, '../public/sounds')));
 
 // API endpoints - MUST be defined BEFORE the wildcard route
 // Get sound files
