@@ -69,35 +69,88 @@ const Soundboard = () => {
 
   // Fetch sounds from the Replit backend
   useEffect(() => {
+    console.log('Fetching sounds from:', `${API_URL}/api/sounds`);
     fetch(`${API_URL}/api/sounds`)
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
       .then(data => {
+        console.log('Fetched sounds:', data);
         setSounds(data);
         
-        // Pre-load audio elements
+        // Pre-load audio elements with error handling
         const audioElementsObj = {};
         data.forEach(sound => {
-          // Update the audio path to use the Replit backend URL
-          const audio = new Audio(`${API_URL}/sounds/${sound.file}`);
-          audioElementsObj[sound.id] = audio;
+          try {
+            // Use the full URL from the backend response if available, or construct it
+            const soundUrl = sound.url || `${API_URL}/sounds/${sound.file}`;
+            console.log(`Loading sound: ${sound.name} from ${soundUrl}`);
+            const audio = new Audio(soundUrl);
+            
+            // Add error handling for audio loading
+            audio.onerror = (e) => {
+              console.error(`Error loading sound ${sound.name}:`, e);
+            };
+            
+            audioElementsObj[sound.id] = audio;
+          } catch (error) {
+            console.error(`Error creating audio element for ${sound.name}:`, error);
+          }
         });
         setAudioElements(audioElementsObj);
       })
-      .catch(error => console.error('Error fetching sounds:', error));
-  }, []);
+      .catch(error => {
+        console.error('Error fetching sounds:', error);
+        // You might want to set an error state here to show to the user
+      });
+  }, [API_URL]);
 
   // Function to play a sound
   const playSound = (soundId, isLocal = true) => {
+    console.log(`Playing sound ${soundId}, isLocal: ${isLocal}`);
     const audio = audioElements[soundId];
-    if (!audio) return;
     
-    // Set volume based on whether it's a local or remote play
-    audio.volume = isLocal ? localVolume / 100 : remoteVolume / 100;
+    if (!audio) {
+      console.error(`Sound with ID ${soundId} not found in audioElements`);
+      return;
+    }
     
-    // Stop any currently playing sound
-    if (lastPlayedSound && !isInPlaylistMode) {
-      audioElements[lastPlayedSound].pause();
-      audioElements[lastPlayedSound].currentTime = 0;
+    try {
+      // Clone the audio element to allow overlapping sounds
+      const audioClone = new Audio(audio.src);
+      
+      // Set volume based on whether it's a local or remote play
+      audioClone.volume = isLocal ? localVolume / 100 : remoteVolume / 100;
+      
+      // Stop any currently playing sound if not in playlist mode
+      if (lastPlayedSound && !isInPlaylistMode && audioElements[lastPlayedSound]) {
+        audioElements[lastPlayedSound].pause();
+        audioElements[lastPlayedSound].currentTime = 0;
+      }
+      
+      // Play the sound
+      audioClone.play().catch(error => {
+        console.error('Error playing sound:', error);
+      });
+      
+      // Update the last played sound
+      setLastPlayedSound(soundId);
+      
+      // If it's a local play, broadcast to other users
+      if (isLocal && socket && roomId) {
+        console.log('Broadcasting sound to room:', roomId, soundId);
+        socket.emit('play-sound', {
+          roomId,
+          soundId,
+          timestamp: Date.now()
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error in playSound:', error);
     }
     
     // Play the sound
