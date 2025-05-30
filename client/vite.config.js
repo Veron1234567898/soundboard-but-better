@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { fileURLToPath, URL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   plugins: [
@@ -11,13 +11,7 @@ export default defineConfig({
       },
     })
   ],
-  css: {
-    postcss: {
-      plugins: [
-        require('autoprefixer')
-      ]
-    }
-  },
+  // Remove PostCSS configuration to use Vite's defaults
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
