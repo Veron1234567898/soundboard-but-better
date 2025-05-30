@@ -12,7 +12,11 @@ export default defineConfig({
     })
   ],
   css: {
-    postcss: './postcss.config.js'
+    postcss: {
+      plugins: [
+        require('autoprefixer')
+      ]
+    }
   },
   resolve: {
     alias: {
