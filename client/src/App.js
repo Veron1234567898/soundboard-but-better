@@ -494,6 +494,39 @@ const Home = () => {
     return localStorage.getItem('userName') || '';
   });
   const [error, setError] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
+  const [socket, setSocket] = useState(null);
+
+  // Initialize socket connection
+  useEffect(() => {
+    const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:3001');
+    setSocket(newSocket);
+
+    // Set up event listeners
+    newSocket.on('room-joined', (data) => {
+      console.log('Successfully joined room:', data);
+      setIsJoining(false);
+      // Only navigate if we're not already on the room page
+      if (!window.location.pathname.includes(`/room/${data.roomId}`)) {
+        navigate(`/room/${data.roomId}`);
+      }
+    });
+
+    newSocket.on('room-error', (error) => {
+      console.error('Room error:', error);
+      setError(error.message || 'Failed to join room');
+      setIsJoining(false);
+    });
+    
+    newSocket.on('create-room-success', (data) => {
+      console.log('Room created successfully:', data);
+      // The room-joined event will handle the navigation
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [navigate]);
 
   const handleCreateRoom = (e) => {
     e.preventDefault();
@@ -502,9 +535,18 @@ const Home = () => {
       return;
     }
     
+    setError('');
+    setIsJoining(true);
     localStorage.setItem('userName', userName);
-    const newRoomId = uuidv4().substring(0, 8);
-    navigate(`/room/${newRoomId}`);
+    
+    // Generate a new room ID and create the room
+    const newRoomId = uuidv4().substring(0, 8).toLowerCase();
+    
+    // Emit create-room event to the server
+    socket.emit('create-room', {
+      roomId: newRoomId,
+      userName: userName.trim()
+    });
   };
 
   const handleJoinRoom = (e) => {
@@ -519,9 +561,16 @@ const Home = () => {
       return;
     }
     
+    setError('');
+    setIsJoining(true);
     localStorage.setItem('userName', userName);
-    // Convert roomId to lowercase before navigating to ensure consistent case handling
-    navigate(`/room/${roomId.toLowerCase()}`);
+    
+    // Emit join-room event to the server
+    const roomCode = roomId.trim().toLowerCase();
+    socket.emit('join-room', {
+      roomId: roomCode,
+      userName: userName.trim()
+    });
   };
 
   return (
@@ -561,8 +610,12 @@ const Home = () => {
                 />
               </div>
               {error && <div className="error-message">{error}</div>}
-              <button type="submit" className="primary-button">
-                Join Room
+              <button 
+                type="submit" 
+                className="primary-button"
+                disabled={isJoining}
+              >
+                {isJoining ? 'Joining...' : 'Join Room'}
               </button>
             </form>
           </div>

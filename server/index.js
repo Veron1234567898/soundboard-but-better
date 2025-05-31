@@ -290,21 +290,79 @@ setInterval(() => {
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
   
-  // Join a room
+    // Create a new room
+  socket.on('create-room', (data) => {
+    if (!data || !data.roomId) {
+      console.error('Invalid create-room data:', data);
+      socket.emit('room-error', { message: 'Invalid room data' });
+      return;
+    }
+    
+    const { roomId, userName = 'Host' } = data;
+    
+    // Check if room already exists
+    if (rooms[roomId]) {
+      console.log(`Room ${roomId} already exists`);
+      socket.emit('room-error', { 
+        message: 'Room already exists. Please try a different room code.' 
+      });
+      return;
+    }
+    
+    // Create new room
+    rooms[roomId] = {
+      users: [],
+      lastActivity: Date.now(),
+      createdAt: Date.now()
+    };
+    
+    console.log(`Created new room: ${roomId}`);
+    
+    // Now join the newly created room
+    socket.emit('create-room-success', { roomId });
+    
+    // Join the room
+    socket.join(roomId);
+    
+    // Add user to the room
+    const user = {
+      id: socket.id,
+      name: userName,
+      lastActivity: Date.now()
+    };
+    
+    rooms[roomId].users.push(user);
+    rooms[roomId].lastActivity = Date.now();
+    
+    // Acknowledge the room creation and join
+    socket.emit('room-joined', { 
+      roomId,
+      socketId: socket.id,
+      userName,
+      isNewRoom: true,
+      users: [user]
+    });
+    
+    console.log(`User ${socket.id} (${userName}) created and joined room ${roomId}`);
+  });
+  
+  // Join an existing room
   socket.on('join-room', (data) => {
     if (!data || !data.roomId) {
       console.error('Invalid join-room data:', data);
+      socket.emit('room-error', { message: 'Invalid room data' });
       return;
     }
     
     const { roomId, userName = 'Anonymous' } = data;
     
-    // Initialize room if it doesn't exist
+    // Check if room exists (for joining existing rooms)
     if (!rooms[roomId]) {
-      rooms[roomId] = {
-        users: [],
-        lastActivity: Date.now()
-      };
+      console.log(`Room ${roomId} does not exist`);
+      socket.emit('room-error', { 
+        message: 'Room does not exist. Please check the room code or create a new room.' 
+      });
+      return;
     }
     
     // Join the room
@@ -337,7 +395,11 @@ io.on('connection', (socket) => {
     socket.emit('room-joined', { 
       roomId,
       socketId: socket.id,
-      userName
+      userName,
+      users: rooms[roomId].users.map(u => ({
+        id: u.id,
+        name: u.name
+      }))
     });
     
     // Emit room info to all users in the room
