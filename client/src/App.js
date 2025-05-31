@@ -180,23 +180,17 @@ const Soundboard = () => {
   useEffect(() => {
     const apiUrl = `${process.env.REACT_APP_API_URL}/api/sounds`;
     console.log('Fetching sounds from:', apiUrl);
-    
-    fetch(apiUrl)
-      .then(response => {
+      then(response => {
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error('Failed to fetch sounds');
         }
         return response.json();
       })
       .then(data => {
         console.log('Received sounds data:', data);
-        if (!Array.isArray(data)) {
-          throw new Error('Expected an array of sounds but got: ' + JSON.stringify(data));
-        }
-        
         setSounds(data);
         
-        // Pre-load audio elements
+        // Preload all sounds with proper preloading
         const audioElementsObj = {};
         const loadPromises = data.map(sound => {
           return new Promise((resolve) => {
@@ -211,20 +205,23 @@ const Soundboard = () => {
                 : `${process.env.REACT_APP_API_URL}${sound.url}`;
                 
               console.log('Loading sound:', sound.name, 'from', audioUrl);
-              const audio = new Audio(audioUrl);
               
-              audio.oncanplaythrough = () => {
-                console.log('Successfully loaded:', sound.name);
-                audioElementsObj[sound.id] = audio;
-                resolve();
-              };
+              // Create audio context for faster playback
+              const audio = new Audio();
+              audio.preload = 'auto';
+              audio.autoplay = false;
+              audio.src = audioUrl;
               
-              audio.onerror = (e) => {
-                console.error('Error loading sound:', sound.name, e);
-                resolve(); // Resolve anyway to continue loading other sounds
-              };
-              
+              // Start loading the audio
               audio.load();
+              
+              // Store reference to the audio element
+              audioElementsObj[sound.id] = audio;
+              
+              // Resolve immediately without waiting for full load
+              // This allows the app to be responsive while sounds load in the background
+              resolve();
+              
             } catch (error) {
               console.error('Error initializing sound:', sound.name, error);
               resolve(); // Resolve anyway to continue loading other sounds
@@ -232,9 +229,11 @@ const Soundboard = () => {
           });
         });
         
+        // Set audio elements immediately, even as they're loading
+        setAudioElements(audioElementsObj);
+        
         Promise.all(loadPromises).then(() => {
-          console.log('All sounds loaded');
-          setAudioElements(audioElementsObj);
+          console.log('All sounds preloaded');
         });
       })
       .catch(error => {
@@ -259,21 +258,29 @@ const Soundboard = () => {
       
       console.log('Playing sound:', soundId, 'volume:', isLocal ? localVolume : remoteVolume);
       
-      // Create a new audio element to allow overlapping sounds
-      const audioClone = new Audio(audio.src);
+      // Clone the audio element for overlapping sounds
+      const audioClone = audio.cloneNode();
       audioClone.volume = isLocal ? localVolume / 100 : remoteVolume / 100;
       
-      // Play the sound
+      // Play the sound immediately
       const playPromise = audioClone.play();
       
+      // Handle autoplay restrictions
       if (playPromise !== undefined) {
         playPromise.catch(error => {
-          console.error('Playback failed:', error);
+          console.error('Initial playback failed, will retry on interaction:', error);
           // Try again with user interaction
-          document.body.addEventListener('click', function playOnClick() {
-            audioClone.play().catch(e => console.error('Still failed:', e));
-            document.body.removeEventListener('click', playOnClick);
-          }, { once: true });
+          const playOnInteraction = () => {
+            audioClone.play()
+              .then(() => console.log('Playback started after interaction'))
+              .catch(e => console.error('Still failed to play:', e));
+            document.removeEventListener('click', playOnInteraction);
+            document.removeEventListener('keydown', playOnInteraction);
+          };
+          
+          // Try on next click or key press
+          document.addEventListener('click', playOnInteraction, { once: true });
+          document.addEventListener('keydown', playOnInteraction, { once: true });
         });
       }
       
