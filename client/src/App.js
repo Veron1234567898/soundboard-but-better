@@ -180,7 +180,9 @@ const Soundboard = () => {
   useEffect(() => {
     const apiUrl = `${process.env.REACT_APP_API_URL}/api/sounds`;
     console.log('Fetching sounds from:', apiUrl);
-      then(response => {
+    
+    fetch(apiUrl)
+      .then(response => {
         if (!response.ok) {
           throw new Error('Failed to fetch sounds');
         }
