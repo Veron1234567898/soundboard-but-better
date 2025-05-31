@@ -520,7 +520,8 @@ const Home = () => {
     }
     
     localStorage.setItem('userName', userName);
-    navigate(`/room/${roomId}`);
+    // Convert roomId to lowercase before navigating to ensure consistent case handling
+    navigate(`/room/${roomId.toLowerCase()}`);
   };
 
   return (
@@ -553,7 +554,7 @@ const Home = () => {
                   id="roomId"
                   type="text"
                   value={roomId}
-                  onChange={(e) => setRoomId(e.target.value.toUpperCase())}
+                  onChange={(e) => setRoomId(e.target.value)}
                   placeholder="Enter room code"
                   required
                   maxLength="8"
