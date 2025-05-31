@@ -260,29 +260,35 @@ const Soundboard = () => {
       
       console.log('Playing sound:', soundId, 'volume:', isLocal ? localVolume : remoteVolume);
       
-      // Clone the audio element for overlapping sounds
-      const audioClone = audio.cloneNode();
+      // Create a new audio element for each play to allow overlapping
+      const audioClone = new Audio(audio.src);
       audioClone.volume = isLocal ? localVolume / 100 : remoteVolume / 100;
       
-      // Play the sound immediately
-      const playPromise = audioClone.play();
+      // Set autoplay to ensure it plays when possible
+      audioClone.autoplay = true;
       
       // Handle autoplay restrictions
+      const playPromise = audioClone.play();
+      
       if (playPromise !== undefined) {
         playPromise.catch(error => {
-          console.error('Initial playback failed, will retry on interaction:', error);
-          // Try again with user interaction
+          console.log('Initial playback failed, will retry on interaction');
+          
+          // Create a one-time play function
           const playOnInteraction = () => {
             audioClone.play()
               .then(() => console.log('Playback started after interaction'))
               .catch(e => console.error('Still failed to play:', e));
+            // Clean up event listeners
             document.removeEventListener('click', playOnInteraction);
             document.removeEventListener('keydown', playOnInteraction);
+            document.removeEventListener('touchstart', playOnInteraction);
           };
           
-          // Try on next click or key press
+          // Try on next user interaction
           document.addEventListener('click', playOnInteraction, { once: true });
           document.addEventListener('keydown', playOnInteraction, { once: true });
+          document.addEventListener('touchstart', playOnInteraction, { once: true });
         });
       }
       
