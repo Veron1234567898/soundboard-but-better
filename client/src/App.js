@@ -260,8 +260,23 @@ const Soundboard = () => {
       console.log('Playing sound:', soundId, 'volume:', isLocal ? localVolume : remoteVolume);
       
       // Create a new audio element to allow overlapping sounds
-      const audioClone = new Audio(audio.src);
+      const audioClone = new Audio();
+      audioClone.src = audio.src;
       audioClone.volume = isLocal ? localVolume / 100 : remoteVolume / 100;
+      audioClone.preload = 'auto';
+      
+      // Load the audio
+      audioClone.load();
+      
+      // Handle when audio is ready to play
+      const playAudio = () => {
+        audioClone.play().catch(error => {
+          console.error('Playback failed for sound:', soundId, error);
+        });
+      };
+      
+      audioClone.oncanplaythrough = playAudio;
+      audioClone.onplaying = () => console.log('Sound is playing:', soundId);
       
       audioClone.onerror = (e) => {
         console.error('Error playing sound:', soundId, e);
@@ -277,10 +292,8 @@ const Soundboard = () => {
         });
       }
       
-      // Play the sound
-      audioClone.play().catch(error => {
-        console.error('Playback failed for sound:', soundId, error);
-      });
+      // Try to play immediately
+      playAudio();
       
       // Clean up the audio element after it finishes playing
       audioClone.onended = () => {
