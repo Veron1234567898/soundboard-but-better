@@ -260,27 +260,22 @@ const Soundboard = () => {
       console.log('Playing sound:', soundId, 'volume:', isLocal ? localVolume : remoteVolume);
       
       // Create a new audio element to allow overlapping sounds
-      const audioClone = new Audio();
-      audioClone.src = audio.src;
+      const audioClone = new Audio(audio.src);
       audioClone.volume = isLocal ? localVolume / 100 : remoteVolume / 100;
-      audioClone.preload = 'auto';
       
-      // Load the audio
-      audioClone.load();
+      // Play the sound
+      const playPromise = audioClone.play();
       
-      // Handle when audio is ready to play
-      const playAudio = () => {
-        audioClone.play().catch(error => {
-          console.error('Playback failed for sound:', soundId, error);
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('Playback failed:', error);
+          // Try again with user interaction
+          document.body.addEventListener('click', function playOnClick() {
+            audioClone.play().catch(e => console.error('Still failed:', e));
+            document.body.removeEventListener('click', playOnClick);
+          }, { once: true });
         });
-      };
-      
-      audioClone.oncanplaythrough = playAudio;
-      audioClone.onplaying = () => console.log('Sound is playing:', soundId);
-      
-      audioClone.onerror = (e) => {
-        console.error('Error playing sound:', soundId, e);
-      };
+      }
       
       // Emit to other users in the room if it's a local play
       if (isLocal && socket && roomId) {
@@ -291,9 +286,6 @@ const Soundboard = () => {
           timestamp: Date.now()
         });
       }
-      
-      // Try to play immediately
-      playAudio();
       
       // Clean up the audio element after it finishes playing
       audioClone.onended = () => {
