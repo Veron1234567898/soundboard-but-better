@@ -7,7 +7,7 @@
       "config": {
         "distDir": "client/build",
         "installCommand": "cd client && npm install",
-        "buildCommand": "cd client && npm run build"
+        "buildCommand": "cd client && npm run build && mkdir -p ../client/build && cp -r build/* ../client/build/"
       }
     }
   ],
