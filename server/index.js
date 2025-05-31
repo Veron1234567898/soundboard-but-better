@@ -361,13 +361,13 @@ io.on('connection', (socket) => {
     
     const { roomId, userName = 'Anonymous' } = data;
     
-    // Check if room exists (for joining existing rooms)
+    // Create room if it doesn't exist
     if (!rooms[roomId]) {
-      console.log(`Room ${roomId} does not exist`);
-      socket.emit('room-error', { 
-        message: 'Room does not exist. Please check the room code or create a new room.' 
-      });
-      return;
+      console.log(`Room ${roomId} does not exist, creating it now`);
+      rooms[roomId] = {
+        users: [],
+        lastActivity: Date.now()
+      };
     }
     
     // Join the room
@@ -436,18 +436,13 @@ io.on('connection', (socket) => {
       return;
     }
     
-    const { roomId, soundId, timestamp = Date.now() } = data;
-    
-    // Update room activity if room exists
+    // Make sure the room exists
     if (!rooms[roomId]) {
-      console.error(`Room not found: ${roomId}`);
+      console.error(`Room ${roomId} does not exist`);
       return;
     }
     
-    // Update room activity
-    rooms[roomId].lastActivity = Date.now();
-    
-    // Find the user who played the sound
+    // Find the user in the room
     const user = rooms[roomId].users.find(u => u.id === socket.id);
     if (!user) {
       console.error(`User ${socket.id} not found in room ${roomId}`);
@@ -457,14 +452,19 @@ io.on('connection', (socket) => {
     // Update user's last activity
     user.lastActivity = Date.now();
     
-    // Broadcast to all users in the room except the sender
-    socket.to(roomId).emit('play-sound', {
+    const soundData = {
+      roomId,
       soundId,
-      timestamp,
+      timestamp: timestamp || Date.now(),
       socketId: socket.id,
       userId: socket.id,
-      userName: user.name
-    });
+      userName: user.name || 'Anonymous'
+    };
+    
+    console.log('Broadcasting play-sound to room:', roomId, soundData);
+    
+    // Broadcast to all users in the room except the sender
+    socket.to(roomId).emit('play-sound', soundData);
     
     console.log(`User ${user.name} (${socket.id}) played sound ${soundId} in room ${roomId}`);
   });

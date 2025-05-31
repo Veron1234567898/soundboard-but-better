@@ -164,6 +164,8 @@ const Soundboard = () => {
     if (socket && roomId) {
       const userName = localStorage.getItem('userName') || 'Anonymous';
       
+      console.log('Joining room with ID:', roomId, 'and name:', userName);
+      
       // Join the room with user info
       socket.emit('join-room', {
         roomId,
@@ -184,24 +186,35 @@ const Soundboard = () => {
         }
       };
       
-      socket.on('room-updated', handleRoomUpdate);
-      
       // Listen for play sound events
       const handlePlaySound = (data) => {
+        console.log('Received play-sound event:', data);
         if (data.roomId === roomId) {
+          console.log('Playing remote sound:', data.soundId);
           playSound(data.soundId, false);
         }
       };
       
+      // Set up all socket event listeners
+      socket.on('room-updated', handleRoomUpdate);
       socket.on('play-sound', handlePlaySound);
+      
+      // Log all socket events for debugging
+      const originalEmit = socket.emit.bind(socket);
+      socket.emit = (event, ...args) => {
+        console.log('Emitting event:', event, args);
+        return originalEmit(event, ...args);
+      };
       
       // Clean up event listeners
       return () => {
+        console.log('Cleaning up socket listeners');
         socket.off('room-updated', handleRoomUpdate);
         socket.off('play-sound', handlePlaySound);
         
         // Leave the room when component unmounts
         if (socket.connected) {
+          console.log('Leaving room:', roomId);
           socket.emit('leave-room', { roomId });
         }
       };
