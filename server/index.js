@@ -431,7 +431,12 @@ io.on('connection', (socket) => {
   
   // Handle play-sound event
   socket.on('play-sound', (data) => {
-    if (!data || !data.roomId || !data.soundId) {
+    console.log('Received play-sound event:', data);
+    
+    // Destructure with default values to prevent errors
+    const { roomId, soundId, timestamp } = data || {};
+    
+    if (!roomId || !soundId) {
       console.error('Invalid play-sound data:', data);
       return;
     }

@@ -69,14 +69,39 @@ const Soundboard = () => {
 
   // Initialize socket connection
   useEffect(() => {
-    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    let apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    
+    // Ensure the URL has the correct protocol
+    if (apiUrl.startsWith('https')) {
+      apiUrl = apiUrl.replace('https', 'wss');
+    } else {
+      apiUrl = apiUrl.replace('http', 'ws');
+    }
+    
     console.log('Connecting to socket server at:', apiUrl);
     
     const newSocket = io(apiUrl, {
       transports: ['websocket'],
-      secure: apiUrl.startsWith('https'),
+      secure: apiUrl.startsWith('wss'),
       rejectUnauthorized: false,
-      withCredentials: true
+      withCredentials: true,
+      path: '/socket.io/'  // Make sure the path matches your server's Socket.IO path
+    });
+    
+    // Log connection events
+    newSocket.on('connect', () => {
+      console.log('Socket connected:', newSocket.id);
+      setIsConnected(true);
+    });
+    
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error.message);
+      setIsConnected(false);
+    });
+    
+    newSocket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
+      setIsConnected(false);
     });
     
     setSocket(newSocket);
