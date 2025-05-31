@@ -213,11 +213,22 @@ const Soundboard = () => {
       
       // Listen for play sound events
       const handlePlaySound = (data) => {
-        console.log('Received play-sound event:', data);
-        if (data.roomId === roomId) {
-          console.log('Playing remote sound:', data.soundId);
-          playSound(data.soundId, false);
+        console.log('\n=== CLIENT: RECEIVED PLAY-SOUND ===');
+        console.log('Data:', JSON.stringify(data, null, 2));
+        
+        // Skip if this is our own sound (to prevent echo)
+        if (data.from === newSocket.id) {
+          console.log('Skipping own sound');
+          return;
         }
+        
+        if (data.roomId !== roomId) {
+          console.log(`Sound not for this room. Expected ${roomId}, got ${data.roomId}`);
+          return;
+        }
+        
+        console.log(`Playing remote sound ${data.soundId} from ${data.from}`);
+        playSound(data.soundId, false);
       };
       
       // Set up all socket event listeners
@@ -335,6 +346,9 @@ const Soundboard = () => {
 
   // Function to play a sound
   const playSound = (soundId, isLocal = true) => {
+    console.log(`=== PLAY SOUND ===`);
+    console.log(`Sound ID: ${soundId}, Is Local: ${isLocal}, Room: ${roomId}`);
+    
     try {
       const audio = audioElements[soundId];
       if (!audio) {
@@ -342,7 +356,7 @@ const Soundboard = () => {
         return;
       }
       
-      console.log('Playing sound:', soundId, 'volume:', isLocal ? localVolume : remoteVolume);
+      console.log('Audio element found, volume:', isLocal ? localVolume : remoteVolume);
       
       // Create a new audio element for each play to allow overlapping
       const audioClone = new Audio(audio.src);
@@ -351,6 +365,7 @@ const Soundboard = () => {
       
       // Simple play function with retry logic
       const playWithRetry = (retryCount = 2) => {
+        console.log(`Attempting to play sound (${retryCount} retries left)`);
         const playPromise = audioClone.play();
         
         if (playPromise !== undefined) {
@@ -359,7 +374,7 @@ const Soundboard = () => {
               console.log('Playback started successfully');
             })
             .catch(error => {
-              console.log('Playback failed, retrying...');
+              console.log('Playback failed, retrying...', error);
               if (retryCount > 0) {
                 // Try again with a small delay
                 setTimeout(() => playWithRetry(retryCount - 1), 50);
@@ -374,18 +389,26 @@ const Soundboard = () => {
       playWithRetry();
       
       // Clean up the audio element when done
-      audioClone.onended = audioClone.onerror = () => {
+      audioClone.onended = () => {
+        console.log('Playback ended');
+        audioClone.remove();
+      };
+      
+      audioClone.onerror = (error) => {
+        console.error('Playback error:', error);
         audioClone.remove();
       };
       
       // Emit to other users in the room if it's a local play
       if (isLocal && socket && roomId) {
-        console.log('Emitting play-sound to room:', roomId, 'sound:', soundId);
-        socket.emit('play-sound', { 
+        const soundData = { 
           roomId, 
           soundId,
-          timestamp: Date.now()
-        });
+          timestamp: Date.now(),
+          from: socket.id
+        };
+        console.log('Emitting play-sound to room:', roomId, 'data:', soundData);
+        socket.emit('play-sound', soundData);
       }
       
       // Clean up the audio element after it finishes playing

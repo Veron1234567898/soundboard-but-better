@@ -431,15 +431,19 @@ io.on('connection', (socket) => {
   
   // Handle play-sound event
   socket.on('play-sound', (data) => {
-    console.log('Received play-sound event:', data);
+    console.log('\n=== SERVER: PLAY-SOUND EVENT ===');
+    console.log('Received data:', JSON.stringify(data, null, 2));
     
     // Destructure with default values to prevent errors
-    const { roomId, soundId, timestamp } = data || {};
+    const { roomId, soundId, timestamp, from } = data || {};
     
     if (!roomId || !soundId) {
-      console.error('Invalid play-sound data:', data);
+      console.error('ERROR: Missing roomId or soundId in data:', data);
       return;
     }
+    
+    console.log(`Processing sound ${soundId} from socket ${from} in room ${roomId}`);
+    console.log('Active rooms:', Object.keys(rooms));
     
     // Make sure the room exists
     if (!rooms[roomId]) {
