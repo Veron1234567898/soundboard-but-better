@@ -22,11 +22,29 @@ const Soundboard = () => {
 
   // Initialize socket connection
   useEffect(() => {
-    const newSocket = io('http://localhost:3001');
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    const newSocket = io(apiUrl, {
+      transports: ['websocket'],
+      secure: true,
+      rejectUnauthorized: false
+    });
     setSocket(newSocket);
     
+    // Connection event listeners
+    newSocket.on('connect', () => {
+      console.log('Connected to server');
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+    });
+    
     // Clean up on unmount
-    return () => newSocket.disconnect();
+    return () => {
+      newSocket.off('connect');
+      newSocket.off('connect_error');
+      newSocket.disconnect();
+    };
   }, []);
 
   // Join room when socket is ready and roomId is available
