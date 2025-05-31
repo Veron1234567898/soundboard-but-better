@@ -74,8 +74,16 @@ const Soundboard = () => {
         // Pre-load audio elements
         const audioElementsObj = {};
         data.forEach(sound => {
-          const audio = new Audio(`/sounds/${sound.file}`);
-          audioElementsObj[sound.id] = audio;
+          try {
+            // Use the URL provided by the API
+            const audioUrl = `${process.env.REACT_APP_API_URL}${sound.url}`;
+            console.log('Loading sound:', audioUrl);
+            const audio = new Audio(audioUrl);
+            audio.load(); // Preload the audio
+            audioElementsObj[sound.id] = audio;
+          } catch (error) {
+            console.error('Error loading sound:', sound.file, error);
+          }
         });
         setAudioElements(audioElementsObj);
       })

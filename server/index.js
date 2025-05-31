@@ -107,8 +107,44 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve uploaded sounds
-app.use('/sounds', express.static(path.join(__dirname, '../public/sounds')));
+// Create public/sounds directory if it doesn't exist
+const soundsDir = path.join(__dirname, '../public/sounds');
+if (!fs.existsSync(soundsDir)) {
+  fs.mkdirSync(soundsDir, { recursive: true });
+  console.log('Created sounds directory at:', soundsDir);
+}
+
+// Serve uploaded sounds with proper encoding handling
+app.use('/sounds', (req, res, next) => {
+  // Decode the URL-encoded filename
+  const decodedPath = decodeURIComponent(req.path);
+  
+  // Serve the file with proper headers
+  res.sendFile(decodedPath, {
+    root: soundsDir,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+      'Content-Type': 'audio/mpeg'
+    }
+  }, (err) => {
+    if (err) {
+      console.error('Error serving file:', decodedPath, err);
+      res.status(404).json({ error: 'File not found' });
+    }
+  });
+});
+
+// Log available sound files
+app.get('/api/available-sounds', (req, res) => {
+  fs.readdir(soundsDir, (err, files) => {
+    if (err) {
+      console.error('Error reading sounds directory:', err);
+      return res.status(500).json({ error: 'Failed to read sounds directory' });
+    }
+    res.json({ files });
+  });
+});
 
 // Simple health check endpoint
 app.get('/health', (req, res) => {
@@ -119,20 +155,7 @@ app.get('/health', (req, res) => {
 // Get sound files
 app.get('/api/sounds', (req, res) => {
   console.log('GET /api/sounds request received');
-  const soundsDir = path.join(__dirname, '../public/sounds');
   console.log('Looking for sounds in:', soundsDir);
-  
-  // Check if directory exists
-  if (!fs.existsSync(soundsDir)) {
-    console.error('Sounds directory does not exist! Creating it...');
-    try {
-      fs.mkdirSync(soundsDir, { recursive: true });
-      console.log('Created sounds directory');
-    } catch (mkdirErr) {
-      console.error('Failed to create sounds directory:', mkdirErr);
-      return res.status(500).json({ error: 'Failed to create sounds directory' });
-    }
-  }
   
   fs.readdir(soundsDir, (err, files) => {
     if (err) {
@@ -142,17 +165,23 @@ app.get('/api/sounds', (req, res) => {
     
     console.log('Found files in sounds directory:', files);
     
-    // Filter only audio files
-    const soundFiles = files.filter(file => 
-      /\.(mp3|wav|ogg)$/i.test(file)
-    ).map(file => ({
-      id: file.replace(/\.[^/.]+$/, ""), // Remove extension
-      name: file.replace(/\.[^/.]+$/, "")
-        .split('-')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' '), // Format name
-      file
-    }));
+    // Filter only audio files and create proper response
+    const soundFiles = files
+      .filter(file => /\.(mp3|wav|ogg)$/i.test(file))
+      .map(file => {
+        const id = file.replace(/\.[^/.]+$/, "");
+        const name = id
+          .split(/[-_]+/)
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+        
+        return {
+          id,
+          name,
+          file: encodeURIComponent(file), // Return encoded filename for the URL
+          url: `/sounds/${encodeURIComponent(file)}` // Full URL to the sound file
+        };
+      });
     
     console.log('Returning sound files:', soundFiles);
     res.json(soundFiles);
