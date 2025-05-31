@@ -66,7 +66,7 @@ const Soundboard = () => {
 
   // Fetch sounds from the server
   useEffect(() => {
-    fetch('http://localhost:3001/api/sounds')
+    fetch(`${process.env.REACT_APP_API_URL}/api/sounds`)
       .then(response => response.json())
       .then(data => {
         setSounds(data);

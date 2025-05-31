@@ -12,64 +12,108 @@ const server = http.createServer(app);
 // Get port from environment variable or use 10000 as default (matching render.yaml)
 const PORT = process.env.PORT || 10000;
 
-// Configure CORS for production and development
+// Configure allowed origins
+const allowedOrigins = [
+  'https://soundboard-but-better-exq7.vercel.app',
+  'https://soundboard-but-better-*.vercel.app',  // All Vercel preview deployments
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://049be9b9-7c75-410e-b625-83add43ee7d1-00-jxxxnpmd2yi.sisko.replit.dev',
+  'https://*.replit.dev',  // All Replit deployments
+  'https://soundboard-but-better-exq7-a4mhfvzid-guys-projects-dd3ce6cf.vercel.app'  // Your specific Vercel URL
+];
+
+// Configure Socket.IO CORS
 const io = new Server(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? ['https://soundboard-frontend.onrender.com', 'http://localhost:3000']
-      : '*',
-    methods: ['GET', 'POST']
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      // Check if origin is explicitly allowed
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      // Check against wildcard patterns
+      const isAllowed = allowedOrigins.some(allowedOrigin => {
+        if (allowedOrigin.includes('*')) {
+          const regex = new RegExp(allowedOrigin.replace(/\*/g, '.*'));
+          return regex.test(origin);
+        }
+        return false;
+      });
+      
+      if (isAllowed) {
+        return callback(null, true);
+      }
+      
+      console.log('Socket.IO blocked by CORS:', origin);
+      callback(new Error('Not allowed by CORS'));
+    },
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 
-// Enable CORS
+// Enable CORS for Express
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? ['https://soundboard-frontend.onrender.com', 'http://localhost:3000']
-    : '*',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is explicitly allowed
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Check against wildcard patterns
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (allowedOrigin.includes('*')) {
+        const regex = new RegExp(allowedOrigin.replace(/\*/g, '.*'));
+        return regex.test(origin);
+      }
+      return false;
+    });
+    
+    if (isAllowed) {
+      return callback(null, true);
+    }
+    
+    console.log('Blocked by CORS:', origin);
+    callback(new Error('Not allowed by CORS'));
+  },
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: true,
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 }));
 
 // Add headers middleware
 app.use((req, res, next) => {
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['https://soundboard-frontend.onrender.com', 'http://localhost:3000']
-    : '*';
-    
-  res.header('Access-Control-Allow-Origin', allowedOrigins);
+  const requestOrigin = req.headers.origin;
+  if (allowedOrigins.includes(requestOrigin) || allowedOrigins.includes('*')) {
+    res.header('Access-Control-Allow-Origin', requestOrigin || '*');
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
   next();
 });
 
-// Serve static files from the Parcel build output in production
-if (process.env.NODE_ENV === 'production') {
-  // Try both possible build directories
-  const buildPath = path.join(__dirname, '../client/dist');
-  if (fs.existsSync(buildPath)) {
-    app.use(express.static(buildPath));
-    console.log(`Serving static files from ${buildPath}`);
-  } else {
-    const oldBuildPath = path.join(__dirname, '../client/build');
-    if (fs.existsSync(oldBuildPath)) {
-      app.use(express.static(oldBuildPath));
-      console.log(`Serving static files from ${oldBuildPath}`);
-    } else {
-      console.error('Could not find client build directory');
-    }
-  }
-  
-  // Handle SPA routing by serving index.html for all other routes
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
-  });
-}
-
 // Serve uploaded sounds
 app.use('/sounds', express.static(path.join(__dirname, '../public/sounds')));
+
+// Simple health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // API endpoints - MUST be defined BEFORE the wildcard route
 // Get sound files
@@ -115,14 +159,12 @@ app.get('/api/sounds', (req, res) => {
   });
 });
 
-// Serve index.html for the root path
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
-});
-
-// This must be the LAST route defined - handle all other routes for client-side routing
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+// Handle 404 for API routes
+app.use((req, res) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  res.status(404).json({ error: 'Not found' });
 });
 
 // Room management
@@ -256,39 +298,10 @@ setInterval(() => {
   });
 }, 5 * 60 * 1000);
 
-const PORT = process.env.PORT || 3001;
-
-// Try to start the server with the first available port
-const tryPorts = [PORT, PORT + 1, PORT + 2, PORT + 3, PORT + 4];
-
-function tryNextPort(index = 0) {
-  if (index >= tryPorts.length) {
-    console.error('All ports in range are in use. Please free up a port or specify a different port range.');
-    process.exit(1);
-    return;
-  }
-  
-  const port = tryPorts[index];
-  console.log(`Attempting to start server on port ${port}...`);
-  
-  const serverInstance = server.listen(port);
-  
-  serverInstance.on('listening', () => {
-    console.log(`✅ Server successfully running on port ${port}`);
-    console.log(`Open http://localhost:${port} in your browser`);
-  });
-  
-  serverInstance.on('error', (err) => {
-    serverInstance.close();
-    
-    if (err.code === 'EADDRINUSE') {
-      console.log(`❌ Port ${port} is already in use.`);
-      tryNextPort(index + 1);
-    } else {
-      console.error('Server error:', err);
-      process.exit(1);
-    }
-  });
-}
-
-tryNextPort();
+// Start the server
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Backend server running on port ${PORT}`);
+  console.log(`WebSocket server: ws://localhost:${PORT}`);
+  console.log(`API base URL: http://localhost:${PORT}`);
+  console.log('Ready to accept connections from your frontend!');
+});
