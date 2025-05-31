@@ -202,27 +202,41 @@ const Soundboard = () => {
                 return resolve();
               }
               
-              const audioUrl = sound.url.startsWith('http')
-                ? sound.url
-                : `${process.env.REACT_APP_API_URL}${sound.url}`;
-                
+              // Ensure the URL is properly formatted
+              let audioUrl = sound.url;
+              if (!audioUrl.startsWith('http')) {
+                // If it's a relative URL, prepend the API URL
+                audioUrl = `${process.env.REACT_APP_API_URL}${audioUrl.startsWith('/') ? '' : '/'}${audioUrl}`;
+              }
+              
               console.log('Loading sound:', sound.name, 'from', audioUrl);
               
-              // Create audio context for faster playback
+              // Create audio element with error handling
               const audio = new Audio();
               audio.preload = 'auto';
               audio.autoplay = false;
+              
+              // Handle successful load
+              audio.oncanplaythrough = () => {
+                console.log('Sound loaded successfully:', sound.name);
+                audioElementsObj[sound.id] = audio;
+                resolve();
+              };
+              
+              // Handle load errors
+              audio.onerror = (e) => {
+                console.error('Error loading sound:', sound.name, 'Error:', e);
+                resolve(); // Resolve to continue with other sounds
+              };
+              
+              // Set the source last to start loading
               audio.src = audioUrl;
               
-              // Start loading the audio
-              audio.load();
-              
-              // Store reference to the audio element
-              audioElementsObj[sound.id] = audio;
-              
-              // Resolve immediately without waiting for full load
-              // This allows the app to be responsive while sounds load in the background
-              resolve();
+              // For browsers that don't fire oncanplaythrough for cached files
+              if (audio.readyState >= 3) { // HAVE_FUTURE_DATA or more
+                audioElementsObj[sound.id] = audio;
+                resolve();
+              }
               
             } catch (error) {
               console.error('Error initializing sound:', sound.name, error);
@@ -263,34 +277,36 @@ const Soundboard = () => {
       // Create a new audio element for each play to allow overlapping
       const audioClone = new Audio(audio.src);
       audioClone.volume = isLocal ? localVolume / 100 : remoteVolume / 100;
+      audioClone.muted = false;
       
-      // Set autoplay to ensure it plays when possible
-      audioClone.autoplay = true;
+      // Simple play function with retry logic
+      const playWithRetry = (retryCount = 2) => {
+        const playPromise = audioClone.play();
+        
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log('Playback started successfully');
+            })
+            .catch(error => {
+              console.log('Playback failed, retrying...');
+              if (retryCount > 0) {
+                // Try again with a small delay
+                setTimeout(() => playWithRetry(retryCount - 1), 50);
+              } else {
+                console.error('All playback attempts failed:', error);
+              }
+            });
+        }
+      };
       
-      // Handle autoplay restrictions
-      const playPromise = audioClone.play();
+      // Start playback with retry
+      playWithRetry();
       
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          console.log('Initial playback failed, will retry on interaction');
-          
-          // Create a one-time play function
-          const playOnInteraction = () => {
-            audioClone.play()
-              .then(() => console.log('Playback started after interaction'))
-              .catch(e => console.error('Still failed to play:', e));
-            // Clean up event listeners
-            document.removeEventListener('click', playOnInteraction);
-            document.removeEventListener('keydown', playOnInteraction);
-            document.removeEventListener('touchstart', playOnInteraction);
-          };
-          
-          // Try on next user interaction
-          document.addEventListener('click', playOnInteraction, { once: true });
-          document.addEventListener('keydown', playOnInteraction, { once: true });
-          document.addEventListener('touchstart', playOnInteraction, { once: true });
-        });
-      }
+      // Clean up the audio element when done
+      audioClone.onended = audioClone.onerror = () => {
+        audioClone.remove();
+      };
       
       // Emit to other users in the room if it's a local play
       if (isLocal && socket && roomId) {
