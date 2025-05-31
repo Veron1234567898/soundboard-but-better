@@ -7,15 +7,13 @@
     "server"
   ],
   "scripts": {
-    "install:all": "npm install && npm run install:client && npm run install:server",
     "install:client": "cd client && npm install",
     "install:server": "cd server && npm install",
     "build:client": "cd client && npm run build",
     "start:server": "cd server && npm start",
     "start:client": "cd client && npm start",
     "start": "npm-run-all --parallel start:server start:client",
-    "build": "npm run build:client",
-    "postinstall": "npm run install:all"
+    "build": "npm run build:client"
   },
   "engines": {
     "node": ">=14.0.0",
