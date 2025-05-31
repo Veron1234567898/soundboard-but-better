@@ -5,6 +5,20 @@ const { Server } = require('socket.io');
 const fs = require('fs');
 const cors = require('cors');
 
+// Set up sounds directory
+const soundsDir = path.join(__dirname, '../public/sounds');
+
+// Create public/sounds directory if it doesn't exist
+if (!fs.existsSync(soundsDir)) {
+  try {
+    fs.mkdirSync(soundsDir, { recursive: true });
+    console.log('Created sounds directory at:', soundsDir);
+  } catch (err) {
+    console.error('Failed to create sounds directory:', err);
+    process.exit(1);
+  }
+}
+
 // Initialize Express app
 const app = express();
 const server = http.createServer(app);
@@ -107,32 +121,62 @@ app.use((req, res, next) => {
   next();
 });
 
-// Create public/sounds directory if it doesn't exist
-const soundsDir = path.join(__dirname, '../public/sounds');
-if (!fs.existsSync(soundsDir)) {
-  fs.mkdirSync(soundsDir, { recursive: true });
-  console.log('Created sounds directory at:', soundsDir);
-}
-
 // Serve uploaded sounds with proper encoding handling
 app.use('/sounds', (req, res, next) => {
-  // Decode the URL-encoded filename
-  const decodedPath = decodeURIComponent(req.path);
-  
-  // Serve the file with proper headers
-  res.sendFile(decodedPath, {
-    root: soundsDir,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Cross-Origin-Resource-Policy': 'cross-origin',
-      'Content-Type': 'audio/mpeg'
+  try {
+    // Decode the URL-encoded filename and get the base name
+    const decodedPath = decodeURIComponent(req.path);
+    const filename = path.basename(decodedPath);
+    const filePath = path.join(soundsDir, filename);
+    
+    console.log('Requested sound file:', { 
+      originalPath: req.path, 
+      decodedPath, 
+      filename,
+      filePath,
+      exists: fs.existsSync(filePath)
+    });
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      console.error('File not found:', filePath);
+      return res.status(404).json({ 
+        error: 'File not found',
+        path: filePath
+      });
     }
-  }, (err) => {
-    if (err) {
-      console.error('Error serving file:', decodedPath, err);
-      res.status(404).json({ error: 'File not found' });
+    
+    // Set headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    
+    // Determine content type based on file extension
+    const ext = path.extname(filename).toLowerCase();
+    const contentType = {
+      '.mp3': 'audio/mpeg',
+      '.wav': 'audio/wav',
+      '.ogg': 'audio/ogg'
+    }[ext] || 'application/octet-stream';
+    
+    res.setHeader('Content-Type', contentType);
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+    
+    fileStream.on('error', (err) => {
+      console.error('Error streaming file:', filePath, err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Error reading file' });
+      }
+    });
+    
+  } catch (err) {
+    console.error('Error in sound file handler:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' });
     }
-  });
+  }
 });
 
 // Log available sound files
@@ -157,17 +201,43 @@ app.get('/api/sounds', (req, res) => {
   console.log('GET /api/sounds request received');
   console.log('Looking for sounds in:', soundsDir);
   
+  // Verify directory exists
+  if (!fs.existsSync(soundsDir)) {
+    const error = `Sounds directory does not exist: ${soundsDir}`;
+    console.error(error);
+    return res.status(500).json({ error: 'Sounds directory not found', path: soundsDir });
+  }
+  
   fs.readdir(soundsDir, (err, files) => {
     if (err) {
       console.error('Error reading sounds directory:', err);
-      return res.status(500).json({ error: 'Failed to read sounds directory', details: err.message });
+      return res.status(500).json({ 
+        error: 'Failed to read sounds directory', 
+        details: err.message,
+        path: soundsDir
+      });
     }
     
     console.log('Found files in sounds directory:', files);
     
     // Filter only audio files and create proper response
     const soundFiles = files
-      .filter(file => /\.(mp3|wav|ogg)$/i.test(file))
+      .filter(file => {
+        const isAudio = /\.(mp3|wav|ogg)$/i.test(file);
+        if (!isAudio) {
+          console.log('Skipping non-audio file:', file);
+          return false;
+        }
+        
+        const filePath = path.join(soundsDir, file);
+        const exists = fs.existsSync(filePath);
+        if (!exists) {
+          console.error('File does not exist but was listed:', filePath);
+          return false;
+        }
+        
+        return true;
+      })
       .map(file => {
         const id = file.replace(/\.[^/.]+$/, "");
         const name = id
@@ -175,15 +245,19 @@ app.get('/api/sounds', (req, res) => {
           .map(word => word.charAt(0).toUpperCase() + word.slice(1))
           .join(' ');
         
+        const encodedFile = encodeURIComponent(file);
+        
         return {
           id,
           name,
-          file: encodeURIComponent(file), // Return encoded filename for the URL
-          url: `/sounds/${encodeURIComponent(file)}` // Full URL to the sound file
+          file: encodedFile,
+          url: `/sounds/${encodedFile}`
         };
       });
     
-    console.log('Returning sound files:', soundFiles);
+    console.log(`Returning ${soundFiles.length} sound files`);
+    console.log('Sound files:', soundFiles.map(f => f.file));
+    
     res.json(soundFiles);
   });
 });
@@ -199,31 +273,42 @@ app.use((req, res) => {
 // Room management
 const rooms = {};
 
-// Socket.IO logic
+// Clean up inactive rooms periodically
+setInterval(() => {
+  const now = Date.now();
+  const timeout = 24 * 60 * 60 * 1000; // 24 hours
+  
+  Object.keys(rooms).forEach(roomId => {
+    if (now - rooms[roomId].lastActivity > timeout) {
+      console.log(`Room ${roomId} inactive, cleaning up`);
+      delete rooms[roomId];
+    }
+  });
+}, 60 * 60 * 1000); // Check hourly
+
+// Socket.IO connection
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
   
   // Join a room
   socket.on('join-room', (data) => {
-    // Get room ID and username
-    const roomId = typeof data === 'object' ? data.roomId : data;
-    const userName = data.userName || 'Anonymous';
+    if (!data || !data.roomId) {
+      console.error('Invalid join-room data:', data);
+      return;
+    }
     
-    // Leave previous rooms
-    Object.keys(socket.rooms).forEach(room => {
-      if (room !== socket.id) socket.leave(room);
-    });
+    const { roomId, userName = 'Anonymous' } = data;
     
-    // Join new room
-    socket.join(roomId);
-    
-    // Create room if it doesn't exist
+    // Initialize room if it doesn't exist
     if (!rooms[roomId]) {
       rooms[roomId] = {
         users: [],
         lastActivity: Date.now()
       };
     }
+    
+    // Join the room
+    socket.join(roomId);
     
     // Check if user already exists in the room
     const existingUserIndex = rooms[roomId].users.findIndex(u => u.id === socket.id);
@@ -248,41 +333,105 @@ io.on('connection', (socket) => {
     // Update room activity
     rooms[roomId].lastActivity = Date.now();
     
-    // Emit room info to all users in the room
-    io.to(roomId).emit('room-info', {
+    // Acknowledge the room join
+    socket.emit('room-joined', { 
       roomId,
-      users: rooms[roomId].users.length,
-      userNames: rooms[roomId].users.map(u => u.name)
+      socketId: socket.id,
+      userName
+    });
+    
+    // Emit room info to all users in the room
+    io.to(roomId).emit('room-updated', {
+      roomId,
+      users: rooms[roomId].users.map(u => ({
+        id: u.id,
+        name: u.name
+      }))
     });
     
     console.log(`User ${userName} (${socket.id}) joined room ${roomId}`);
   });
   
-  // Play sound
+  // Handle play-sound event
   socket.on('play-sound', (data) => {
-    const { roomId, soundId, timestamp } = data;
+    if (!data || !data.roomId || !data.soundId) {
+      console.error('Invalid play-sound data:', data);
+      return;
+    }
+    
+    const { roomId, soundId, timestamp = Date.now() } = data;
+    
+    // Update room activity if room exists
+    if (!rooms[roomId]) {
+      console.error(`Room not found: ${roomId}`);
+      return;
+    }
     
     // Update room activity
+    rooms[roomId].lastActivity = Date.now();
+    
+    // Find the user who played the sound
+    const user = rooms[roomId].users.find(u => u.id === socket.id);
+    if (!user) {
+      console.error(`User ${socket.id} not found in room ${roomId}`);
+      return;
+    }
+    
+    // Update user's last activity
+    user.lastActivity = Date.now();
+    
+    // Broadcast to all users in the room except the sender
+    socket.to(roomId).emit('play-sound', {
+      soundId,
+      timestamp,
+      socketId: socket.id,
+      userId: socket.id,
+      userName: user.name
+    });
+    
+    console.log(`User ${user.name} (${socket.id}) played sound ${soundId} in room ${roomId}`);
+  });
+  
+  // Handle leave-room event
+  socket.on('leave-room', (data) => {
+    if (!data || !data.roomId) {
+      console.error('Invalid leave-room data:', data);
+      return;
+    }
+    
+    const { roomId } = data;
+    
     if (rooms[roomId]) {
-      rooms[roomId].lastActivity = Date.now();
-      
-      // Find the user and update their activity
-      const user = rooms[roomId].users.find(u => u.id === socket.id);
-      if (user) {
-        user.lastActivity = Date.now();
+      // Remove user from the room
+      const userIndex = rooms[roomId].users.findIndex(u => u.id === socket.id);
+      if (userIndex !== -1) {
+        const userName = rooms[roomId].users[userIndex].name;
+        rooms[roomId].users.splice(userIndex, 1);
+        console.log(`User ${userName} (${socket.id}) left room ${roomId}`);
         
-        // Broadcast to all users in the room except sender
-        socket.to(roomId).emit('play-sound', {
-          soundId,
-          userId: socket.id,
-          userName: user.name,
-          timestamp
+        // Update room activity
+        rooms[roomId].lastActivity = Date.now();
+        
+        // Notify remaining users in the room
+        io.to(roomId).emit('room-updated', {
+          roomId,
+          users: rooms[roomId].users.map(u => ({
+            id: u.id,
+            name: u.name
+          }))
         });
         
-        console.log(`User ${user.name} played sound ${soundId} in room ${roomId}`);
+        // Leave the socket room
+        socket.leave(roomId);
+      }
+      
+      // Clean up empty rooms
+      if (rooms[roomId].users.length === 0) {
+        console.log(`Room ${roomId} is empty, cleaning up`);
+        delete rooms[roomId];
       }
     } else {
-      console.log(`Room ${roomId} not found when trying to play sound ${soundId}`);
+      console.error(`Room ${roomId} not found when trying to leave`);
     }
   });
   
