@@ -292,11 +292,13 @@ io.on('connection', (socket) => {
   
     // Create a new room
   socket.on('create-room', (data) => {
+    console.log('Received create-room request:', data);
     if (!data || !data.roomId) {
       console.error('Invalid create-room data:', data);
       socket.emit('room-error', { message: 'Invalid room data' });
       return;
     }
+    console.log('Current rooms before creation:', Object.keys(rooms));
     
     const { roomId, userName = 'Host' } = data;
     
@@ -348,11 +350,14 @@ io.on('connection', (socket) => {
   
   // Join an existing room
   socket.on('join-room', (data) => {
+    console.log('Received join-room request:', data);
     if (!data || !data.roomId) {
       console.error('Invalid join-room data:', data);
       socket.emit('room-error', { message: 'Invalid room data' });
       return;
     }
+    
+    console.log('Current rooms:', Object.keys(rooms));
     
     const { roomId, userName = 'Anonymous' } = data;
     

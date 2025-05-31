@@ -599,9 +599,22 @@ const Home = () => {
     
     // Emit join-room event to the server
     const roomCode = roomId.trim().toLowerCase();
+    console.log('Attempting to join room:', roomCode, 'with name:', userName.trim());
+    
     socket.emit('join-room', {
       roomId: roomCode,
       userName: userName.trim()
+    }, (response) => {
+      console.log('Join room response:', response);
+    });
+    
+    // Add socket event listeners for debugging
+    socket.on('room-joined', (data) => {
+      console.log('Room joined successfully:', data);
+    });
+    
+    socket.on('room-error', (error) => {
+      console.error('Error joining room:', error);
     });
   };
 
