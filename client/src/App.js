@@ -162,17 +162,49 @@ const Soundboard = () => {
   // Join room when socket is ready and roomId is available
   useEffect(() => {
     if (socket && roomId) {
-      socket.emit('join-room', roomId);
+      const userName = localStorage.getItem('userName') || 'Anonymous';
       
-      // Listen for room info updates
-      socket.on('room-info', (data) => {
-        setUserCount(data.users);
+      // Join the room with user info
+      socket.emit('join-room', {
+        roomId,
+        userName
       });
+      
+      // Listen for room updates
+      const handleRoomUpdate = (data) => {
+        console.log('Room updated:', data);
+        if (data.roomId === roomId) {
+          setRoomUsers(data.users || []);
+          setUserCount(data.users?.length || 0);
+          
+          // If a new user joined, show a notification
+          if (data.action === 'user-joined' && data.user.id !== socket.id) {
+            console.log(`${data.user.name} joined the room`);
+          }
+        }
+      };
+      
+      socket.on('room-updated', handleRoomUpdate);
       
       // Listen for play sound events
-      socket.on('play-sound', (data) => {
-        playSound(data.soundId, false);
-      });
+      const handlePlaySound = (data) => {
+        if (data.roomId === roomId) {
+          playSound(data.soundId, false);
+        }
+      };
+      
+      socket.on('play-sound', handlePlaySound);
+      
+      // Clean up event listeners
+      return () => {
+        socket.off('room-updated', handleRoomUpdate);
+        socket.off('play-sound', handlePlaySound);
+        
+        // Leave the room when component unmounts
+        if (socket.connected) {
+          socket.emit('leave-room', { roomId });
+        }
+      };
     }
   }, [socket, roomId]);
 

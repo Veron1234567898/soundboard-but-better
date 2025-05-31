@@ -28,7 +28,7 @@ const PORT = process.env.PORT || 10000;
 
 // Configure allowed origins
 const allowedOrigins = [
-  'https://soundboard-but-better-exq7.vercel.app',
+  'https://soundboard-but-better-zq96.vercel.app',
   'https://soundboard-but-better-*.vercel.app',  // All Vercel preview deployments
   'http://localhost:3000',
   'http://localhost:3001',
@@ -391,7 +391,13 @@ io.on('connection', (socket) => {
     // Update room activity
     rooms[roomId].lastActivity = Date.now();
     
-    // Acknowledge the room join
+    // Create user data for response
+    const userData = {
+      id: socket.id,
+      name: userName
+    };
+    
+    // Acknowledge the room join to the joining user
     socket.emit('room-joined', { 
       roomId,
       socketId: socket.id,
@@ -402,14 +408,18 @@ io.on('connection', (socket) => {
       }))
     });
     
-    // Emit room info to all users in the room
+    // Notify all users in the room (including the joining user) about the updated user list
     io.to(roomId).emit('room-updated', {
       roomId,
       users: rooms[roomId].users.map(u => ({
         id: u.id,
         name: u.name
-      }))
+      })),
+      action: 'user-joined',
+      user: userData
     });
+    
+    console.log(`User ${socket.id} (${userName}) joined room ${roomId}`);
     
     console.log(`User ${userName} (${socket.id}) joined room ${roomId}`);
   });
