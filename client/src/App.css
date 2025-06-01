@@ -20,6 +20,56 @@ body {
   font-family: Arial, sans-serif;
   margin: 0;
   padding: 0;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Connection Status */
+.connection-status {
+  position: fixed;
+  top: 10px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  z-index: 1000;
+}
+
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-indicator.connected {
+  background-color: #4caf50;
+  box-shadow: 0 0 10px #4caf50;
+}
+
+.status-indicator.disconnected {
+  background-color: #f44336;
+  box-shadow: 0 0 10px #f44336;
+}
+
+/* Error Messages */
+.error-message {
+  background-color: rgba(244, 67, 54, 0.2);
+  color: #ff8a80;
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin: 16px 0;
+  border-left: 4px solid #f44336;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .soundboard-container {

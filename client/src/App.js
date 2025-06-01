@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { FaHeart, FaPlus, FaSearch, FaSortAmountDown, FaVolumeMute, FaVolumeUp, FaPlay, FaStop } from 'react-icons/fa';
@@ -45,12 +45,14 @@ const Soundboard = () => {
   const [remoteVolume, setRemoteVolume] = useState(50);
   const [favorites, setFavorites] = useState([]);
   const [audioElements, setAudioElements] = useState({});
-  const [lastPlayedSound, setLastPlayedSound] = useState(null);
+  // Remove unused state variables
+  // const [lastPlayedSound, setLastPlayedSound] = useState(null);
   const [isInPlaylistMode, setIsInPlaylistMode] = useState(false);
   const [isPassThrough, setIsPassThrough] = useState(false);
   const [roomUsers, setRoomUsers] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [userName, setUserName] = useState(() => {
+  // Remove unused state variables
+  const [, /* isConnected */ setIsConnected] = useState(false);
+  const [userName] = useState(() => {
     return localStorage.getItem('userName') || '';
   });
   
@@ -58,6 +60,81 @@ const Soundboard = () => {
   useEffect(() => {
     setRoomId(urlRoomId || '');
   }, [urlRoomId]);
+  
+  // Memoize playSound to prevent unnecessary re-renders
+  const playSound = useCallback((soundId, isLocal = true) => {
+    console.log(`=== PLAY SOUND ===`);
+    console.log(`Sound ID: ${soundId}, Is Local: ${isLocal}, Room: ${roomId}`);
+    
+    try {
+      const audio = audioElements[soundId];
+      if (!audio) {
+        console.error('Audio element not found for sound ID:', soundId);
+        return;
+      }
+      
+      console.log('Audio element found, volume:', isLocal ? localVolume : remoteVolume);
+      
+      // Create a new audio element for each play to allow overlapping
+      const audioClone = new Audio(audio.src);
+      audioClone.volume = isLocal ? localVolume / 100 : remoteVolume / 100;
+      audioClone.muted = false;
+      
+      // Simple play function with retry logic
+      const playWithRetry = (retryCount = 2) => {
+        console.log(`Attempting to play sound (${retryCount} retries left)`);
+        const playPromise = audioClone.play();
+        
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log('Playback started successfully');
+              setIsPlaying(true);
+            })
+            .catch(error => {
+              console.log('Playback failed, retrying...', error);
+              if (retryCount > 0) {
+                // Try again with a small delay
+                setTimeout(() => playWithRetry(retryCount - 1), 50);
+              } else {
+                console.error('All playback attempts failed:', error);
+                setIsPlaying(false);
+              }
+            });
+        }
+      };
+      
+      // Start playback with retry
+      playWithRetry();
+      
+      // Clean up the audio element when done
+      audioClone.onended = () => {
+        console.log('Playback ended');
+        setIsPlaying(false);
+        audioClone.remove();
+      };
+      
+      audioClone.onerror = (error) => {
+        console.error('Playback error:', error);
+        setIsPlaying(false);
+        audioClone.remove();
+      };
+      
+      // Emit to other users in the room if it's a local play
+      if (isLocal && socket && roomId) {
+        console.log(`Emitting play-sound to room ${roomId}`);
+        socket.emit('play-sound', {
+          roomId,
+          soundId,
+          from: socket.id
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error in playSound:', error);
+      setIsPlaying(false);
+    }
+  }, [audioElements, localVolume, remoteVolume, roomId, socket]);
 
   // Function to leave the current room
   const leaveRoom = () => {
@@ -352,84 +429,7 @@ const Soundboard = () => {
       });
   }, []);
 
-  // Function to play a sound
-  const playSound = (soundId, isLocal = true) => {
-    console.log(`=== PLAY SOUND ===`);
-    console.log(`Sound ID: ${soundId}, Is Local: ${isLocal}, Room: ${roomId}`);
-    
-    try {
-      const audio = audioElements[soundId];
-      if (!audio) {
-        console.error('Audio element not found for sound ID:', soundId);
-        return;
-      }
-      
-      console.log('Audio element found, volume:', isLocal ? localVolume : remoteVolume);
-      
-      // Create a new audio element for each play to allow overlapping
-      const audioClone = new Audio(audio.src);
-      audioClone.volume = isLocal ? localVolume / 100 : remoteVolume / 100;
-      audioClone.muted = false;
-      
-      // Simple play function with retry logic
-      const playWithRetry = (retryCount = 2) => {
-        console.log(`Attempting to play sound (${retryCount} retries left)`);
-        const playPromise = audioClone.play();
-        
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              console.log('Playback started successfully');
-            })
-            .catch(error => {
-              console.log('Playback failed, retrying...', error);
-              if (retryCount > 0) {
-                // Try again with a small delay
-                setTimeout(() => playWithRetry(retryCount - 1), 50);
-              } else {
-                console.error('All playback attempts failed:', error);
-              }
-            });
-        }
-      };
-      
-      // Start playback with retry
-      playWithRetry();
-      
-      // Clean up the audio element when done
-      audioClone.onended = () => {
-        console.log('Playback ended');
-        audioClone.remove();
-      };
-      
-      audioClone.onerror = (error) => {
-        console.error('Playback error:', error);
-        audioClone.remove();
-      };
-      
-      // Emit to other users in the room if it's a local play
-      if (isLocal && socket && roomId) {
-        const soundData = { 
-          roomId, 
-          soundId,
-          timestamp: Date.now(),
-          from: socket.id
-        };
-        console.log('Emitting play-sound to room:', roomId, 'data:', soundData);
-        socket.emit('play-sound', soundData);
-      }
-      
-      // Clean up the audio element after it finishes playing
-      audioClone.onended = () => {
-        audioClone.remove();
-      };
-      
-      return audioClone;
-    } catch (error) {
-      console.error('Error in playSound:', error);
-      return null;
-    }
-  };
+  // playSound function is defined above with useCallback
 
   // Stop all sounds
   const stopAllSounds = () => {
@@ -597,39 +597,86 @@ const Home = () => {
   const [error, setError] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [socket, setSocket] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   // Initialize socket connection
   useEffect(() => {
-    const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:3001');
+    const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:3001', {
+      reconnectionAttempts: 3,
+      reconnectionDelay: 1000,
+      timeout: 10000
+    });
+    
     setSocket(newSocket);
+    
+    // Connection status handlers
+    const handleConnect = () => {
+      console.log('Connected to server');
+      setIsConnected(true);
+    };
+    
+    const handleDisconnect = (reason) => {
+      console.log('Disconnected from server:', reason);
+      setIsConnected(false);
+      if (reason === 'io server disconnect') {
+        // Reconnect manually
+        newSocket.connect();
+      }
+    };
+    
+    const handleConnectError = (error) => {
+      console.error('Connection error:', error);
+      setError('Failed to connect to server. Please try again later.');
+      setIsJoining(false);
+    };
 
     // Set up event listeners
-    newSocket.on('room-joined', (data) => {
+    const handleRoomJoined = (data) => {
       console.log('Successfully joined room:', data);
       setIsJoining(false);
       // Only navigate if we're not already on the room page
       if (!window.location.pathname.includes(`/room/${data.roomId}`)) {
         navigate(`/room/${data.roomId}`);
       }
-    });
+    };
 
-    newSocket.on('room-error', (error) => {
+    const handleRoomError = (error) => {
       console.error('Room error:', error);
       setError(error.message || 'Failed to join room');
       setIsJoining(false);
-    });
+    };
     
-    newSocket.on('create-room-success', (data) => {
+    const handleCreateRoomSuccess = (data) => {
       console.log('Room created successfully:', data);
       // The room-joined event will handle the navigation
-    });
-
-    return () => {
-      newSocket.disconnect();
     };
-  }, [navigate]);
+    
+    // Add event listeners
+    newSocket.on('connect', handleConnect);
+    newSocket.on('disconnect', handleDisconnect);
+    newSocket.on('connect_error', handleConnectError);
+    newSocket.on('room-joined', handleRoomJoined);
+    newSocket.on('room-error', handleRoomError);
+    newSocket.on('create-room-success', handleCreateRoomSuccess);
 
-  const handleCreateRoom = (e) => {
+    // Cleanup function
+    return () => {
+      // Remove all event listeners
+      newSocket.off('connect', handleConnect);
+      newSocket.off('disconnect', handleDisconnect);
+      newSocket.off('connect_error', handleConnectError);
+      newSocket.off('room-joined', handleRoomJoined);
+      newSocket.off('room-error', handleRoomError);
+      newSocket.off('create-room-success', handleCreateRoomSuccess);
+      
+      // Disconnect only if we're not already connected to a room
+      if (newSocket.connected && !roomId) {
+        newSocket.disconnect();
+      }
+    };
+  }, [navigate, roomId]);
+
+  const handleCreateRoom = useCallback((e) => {
     e.preventDefault();
     if (!userName.trim()) {
       setError('Please enter your name');
@@ -644,13 +691,18 @@ const Home = () => {
     const newRoomId = uuidv4().substring(0, 8).toLowerCase();
     
     // Emit create-room event to the server
-    socket.emit('create-room', {
-      roomId: newRoomId,
-      userName: userName.trim()
-    });
-  };
+    if (socket) {
+      socket.emit('create-room', {
+        roomId: newRoomId,
+        userName: userName.trim()
+      });
+    } else {
+      setError('Connection error. Please try again.');
+      setIsJoining(false);
+    }
+  }, [socket, userName]);
 
-  const handleJoinRoom = (e) => {
+  const handleJoinRoom = useCallback((e) => {
     e.preventDefault();
     if (!userName.trim()) {
       setError('Please enter your name');
@@ -666,32 +718,67 @@ const Home = () => {
     setIsJoining(true);
     localStorage.setItem('userName', userName);
     
+    if (!socket) {
+      setError('Connection error. Please try again.');
+      setIsJoining(false);
+      return;
+    }
+    
     // Emit join-room event to the server
     const roomCode = roomId.trim().toLowerCase();
     console.log('Attempting to join room:', roomCode, 'with name:', userName.trim());
+    
+    // Remove any existing listeners to prevent duplicates
+    socket.off('room-joined');
+    socket.off('room-error');
     
     socket.emit('join-room', {
       roomId: roomCode,
       userName: userName.trim()
     }, (response) => {
       console.log('Join room response:', response);
+      if (response && response.error) {
+        setError(response.error);
+        setIsJoining(false);
+      }
     });
     
-    // Add socket event listeners for debugging
-    socket.on('room-joined', (data) => {
+    // Add socket event listeners for handling join responses
+    const onRoomJoined = (data) => {
       console.log('Room joined successfully:', data);
-    });
+      // The room-joined event from the main effect will handle navigation
+    };
     
-    socket.on('room-error', (error) => {
+    const onRoomError = (error) => {
       console.error('Error joining room:', error);
-    });
-  };
+      setError(error.message || 'Failed to join room');
+      setIsJoining(false);
+    };
+    
+    socket.on('room-joined', onRoomJoined);
+    socket.on('room-error', onRoomError);
+    
+    // Cleanup function
+    return () => {
+      if (socket) {
+        socket.off('room-joined', onRoomJoined);
+        socket.off('room-error', onRoomError);
+      }
+    };
+  }, [socket, userName, roomId]);
 
   return (
     <div className="home-container">
+      <div className="connection-status">
+        <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`} />
+        <span>{isConnected ? 'Connected to server' : 'Disconnected from server'}</span>
+      </div>
+      
       <div className="home-content">
         <h1>Soundboard But Better</h1>
         <p className="subtitle">Create or join a room to start playing sounds with friends</p>
+        
+        {error && <div className="error-message">{error}</div>}
         
         <div className="card">
           <div className="card-header">
