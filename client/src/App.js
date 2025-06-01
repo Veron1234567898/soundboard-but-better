@@ -33,25 +33,28 @@ const RoomInfo = ({ roomId, users, onLeaveRoom, socket }) => {
 };
 
 // Component to hold the main soundboard
-const Soundboard = () => {
+const Soundboard = ({ isConnected, setIsConnected }) => {
   const { roomId: urlRoomId } = useParams();
+  const [roomId, setRoomId] = useState('');
   const [socket, setSocket] = useState(null);
-  const [roomId, setRoomId] = useState(urlRoomId || '');
   const [sounds, setSounds] = useState([]);
+  const [filteredSounds, setFilteredSounds] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState(0);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [activeTab, setActiveTab] = useState(1);
-  const [userCount, setUserCount] = useState(1);
+  const [currentSound, setCurrentSound] = useState(null);
+  const [volume, setVolume] = useState(50);
   const [localVolume, setLocalVolume] = useState(50);
-  const [remoteVolume, setRemoteVolume] = useState(50);
+  const [remoteVolume, setRemoteVolume] = useState(30);
+  const [isMuted, setIsMuted] = useState(false);
+  const [userCount, setUserCount] = useState(0);
   const [favorites, setFavorites] = useState([]);
   const [audioElements, setAudioElements] = useState({});
-  // Remove unused state variables
-  // const [lastPlayedSound, setLastPlayedSound] = useState(null);
   const [isInPlaylistMode, setIsInPlaylistMode] = useState(false);
   const [isPassThrough, setIsPassThrough] = useState(false);
   const [roomUsers, setRoomUsers] = useState([]);
-  // Connection state
-  const [isConnected, setIsConnected] = useState(false);
   
   // Keep roomId in sync with URL
   useEffect(() => {
@@ -593,16 +596,13 @@ const Soundboard = () => {
 };
 
 // Home component for creating/joining rooms
-const Home = () => {
-  const navigate = useNavigate();
+const Home = ({ isConnected, setIsConnected }) => {
   const [roomId, setRoomId] = useState('');
-  const [userName, setUserName] = useState(() => {
-    return localStorage.getItem('userName') || '';
-  });
+  const [userName, setUserName] = useState('');
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [error, setError] = useState('');
-  const [isJoining, setIsJoining] = useState(false);
   const [socket, setSocket] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
 
   // Initialize socket connection
   useEffect(() => {
@@ -862,11 +862,40 @@ const Home = () => {
 
 // Main App component with routing
 const App = () => {
+  // Track connection state at the App level
+  const [isConnected, setIsConnected] = useState(false);
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/room/:roomId" element={<Soundboard />} />
-    </Routes>
+    <div className="App">
+      {/* Connection status indicator */}
+      <div style={{
+        position: 'fixed',
+        top: '10px',
+        right: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        backgroundColor: isConnected ? '#4CAF50' : '#F44336',
+        color: 'white',
+        padding: '5px 10px',
+        borderRadius: '15px',
+        fontSize: '14px',
+        zIndex: 1000
+      }}>
+        <div style={{
+          width: '10px',
+          height: '10px',
+          borderRadius: '50%',
+          backgroundColor: 'white',
+          marginRight: '5px',
+          border: '2px solid white'
+        }}></div>
+        {isConnected ? 'Connected' : 'Disconnected'}
+      </div>
+      
+      <Routes>
+        <Route path="/" element={<Home isConnected={isConnected} setIsConnected={setIsConnected} />} />
+        <Route path="/:roomId" element={<Soundboard isConnected={isConnected} setIsConnected={setIsConnected} />} />
+      </Routes>
+    </div>
   );
 };
 
