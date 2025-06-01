@@ -34,8 +34,9 @@ const RoomInfo = ({ roomId, users, onLeaveRoom, socket }) => {
 
 // Component to hold the main soundboard
 const Soundboard = () => {
-  const { roomId } = useParams();
+  const { roomId: urlRoomId } = useParams();
   const [socket, setSocket] = useState(null);
+  const [roomId, setRoomId] = useState(urlRoomId || '');
   const [sounds, setSounds] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeTab, setActiveTab] = useState(1);
@@ -52,6 +53,11 @@ const Soundboard = () => {
   const [userName, setUserName] = useState(() => {
     return localStorage.getItem('userName') || '';
   });
+  
+  // Keep roomId in sync with URL
+  useEffect(() => {
+    setRoomId(urlRoomId || '');
+  }, [urlRoomId]);
 
   // Function to leave the current room
   const leaveRoom = () => {
@@ -107,7 +113,7 @@ const Soundboard = () => {
     setSocket(newSocket);
     
     // Connection event listeners
-    newSocket.on('connect', () => {
+    const handleConnect = () => {
       console.log('Connected to server with ID:', newSocket.id);
       
       // Get roomId from URL and userName from localStorage
@@ -129,7 +135,9 @@ const Soundboard = () => {
           userName: storedUserName
         });
       }
-    });
+    };
+    
+    newSocket.on('connect', handleConnect);
 
     newSocket.on('connect_error', (error) => {
       console.error('Socket connection error:', error.message);
@@ -217,7 +225,7 @@ const Soundboard = () => {
         console.log('Data:', JSON.stringify(data, null, 2));
         
         // Skip if this is our own sound (to prevent echo)
-        if (data.from === newSocket.id) {
+        if (socket && data.from === socket.id) {
           console.log('Skipping own sound');
           return;
         }
