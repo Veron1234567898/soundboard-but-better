@@ -50,11 +50,8 @@ const Soundboard = () => {
   const [isInPlaylistMode, setIsInPlaylistMode] = useState(false);
   const [isPassThrough, setIsPassThrough] = useState(false);
   const [roomUsers, setRoomUsers] = useState([]);
-  // Remove unused state variables
+  // Connection state
   const [, /* isConnected */ setIsConnected] = useState(false);
-  const [userName] = useState(() => {
-    return localStorage.getItem('userName') || '';
-  });
   
   // Keep roomId in sync with URL
   useEffect(() => {
@@ -267,7 +264,7 @@ const Soundboard = () => {
       newSocket.off('play-sound');
       newSocket.disconnect();
     };
-  }, []);
+  }, [playSound]);
 
   // Join room when socket is ready and roomId is available
   useEffect(() => {
@@ -340,7 +337,7 @@ const Soundboard = () => {
         }
       };
     }
-  }, [socket, roomId]);
+  }, [socket, roomId, playSound]);
 
   // Fetch sounds from the server
   useEffect(() => {
