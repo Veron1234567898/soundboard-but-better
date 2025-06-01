@@ -51,7 +51,7 @@ const Soundboard = () => {
   const [isPassThrough, setIsPassThrough] = useState(false);
   const [roomUsers, setRoomUsers] = useState([]);
   // Connection state
-  const [, /* isConnected */ setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   
   // Keep roomId in sync with URL
   useEffect(() => {
@@ -149,23 +149,30 @@ const Soundboard = () => {
 
   // Initialize socket connection
   useEffect(() => {
-    let apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    // Get the API URL from environment variables or use Replit URL as fallback
+    const apiUrl = process.env.REACT_APP_API_URL || 'https://049be9b9-7c75-410e-b625-83add43ee7d1-00-jxxxnpmd2yi.sisko.replit.dev';
     
-    // Ensure the URL has the correct protocol
-    if (apiUrl.startsWith('https')) {
-      apiUrl = apiUrl.replace('https', 'wss');
-    } else {
-      apiUrl = apiUrl.replace('http', 'ws');
-    }
+    // Parse the URL to handle different formats
+    const url = new URL(apiUrl);
     
-    console.log('Connecting to socket server at:', apiUrl);
+    // Determine WebSocket protocol
+    const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${url.host}`;
     
-    const newSocket = io(apiUrl, {
+    console.log('Connecting to socket server at:', wsUrl);
+    
+    const newSocket = io(wsUrl, {
       transports: ['websocket'],
-      secure: apiUrl.startsWith('wss'),
+      secure: wsProtocol === 'wss:',
       rejectUnauthorized: false,
       withCredentials: true,
-      path: '/socket.io/'  // Make sure the path matches your server's Socket.IO path
+      path: '/socket.io/',  // Make sure the path matches your server's Socket.IO path
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000
     });
     
     // Log connection events
@@ -341,7 +348,8 @@ const Soundboard = () => {
 
   // Fetch sounds from the server
   useEffect(() => {
-    const apiUrl = `${process.env.REACT_APP_API_URL}/api/sounds`;
+    const baseUrl = process.env.REACT_APP_API_URL || 'https://049be9b9-7c75-410e-b625-83add43ee7d1-00-jxxxnpmd2yi.sisko.replit.dev';
+    const apiUrl = `${baseUrl}/api/sounds`;
     console.log('Fetching sounds from:', apiUrl);
     
     fetch(apiUrl)
