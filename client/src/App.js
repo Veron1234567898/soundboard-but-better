@@ -597,6 +597,7 @@ const Soundboard = ({ isConnected, setIsConnected }) => {
 
 // Home component for creating/joining rooms
 const Home = ({ isConnected, setIsConnected }) => {
+  const navigate = useNavigate();
   const [roomId, setRoomId] = useState('');
   const [userName, setUserName] = useState('');
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
@@ -606,10 +607,15 @@ const Home = ({ isConnected, setIsConnected }) => {
 
   // Initialize socket connection
   useEffect(() => {
-    const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:3001', {
+    // Only initialize socket if not already connected
+    if (socket?.connected) return;
+
+    const newSocket = io(process.env.REACT_APP_API_URL || 'https://049be9b9-7c75-410e-b625-83add43ee7d1-00-jxxxnpmd2yi.sisko.replit.dev', {
       reconnectionAttempts: 3,
       reconnectionDelay: 1000,
-      timeout: 10000
+      timeout: 10000,
+      transports: ['websocket'],
+      withCredentials: true
     });
     
     setSocket(newSocket);
@@ -618,27 +624,33 @@ const Home = ({ isConnected, setIsConnected }) => {
     const handleConnect = () => {
       console.log('Connected to server');
       setIsConnected(true);
+      setError('');
     };
     
     const handleDisconnect = (reason) => {
       console.log('Disconnected from server:', reason);
       setIsConnected(false);
       if (reason === 'io server disconnect') {
-        // Reconnect manually
-        newSocket.connect();
+        // Reconnect manually with a delay
+        setTimeout(() => {
+          if (newSocket.disconnected) {
+            newSocket.connect();
+          }
+        }, 1000);
       }
     };
     
     const handleConnectError = (error) => {
       console.error('Connection error:', error);
       setError('Failed to connect to server. Please try again later.');
-      setIsJoining(false);
+      setIsJoiningRoom(false);
     };
 
     // Set up event listeners
     const handleRoomJoined = (data) => {
       console.log('Successfully joined room:', data);
-      setIsJoining(false);
+      setIsJoiningRoom(false);
+      setError('');
       // Only navigate if we're not already on the room page
       if (!window.location.pathname.includes(`/room/${data.roomId}`)) {
         navigate(`/room/${data.roomId}`);
@@ -648,7 +660,7 @@ const Home = ({ isConnected, setIsConnected }) => {
     const handleRoomError = (error) => {
       console.error('Room error:', error);
       setError(error.message || 'Failed to join room');
-      setIsJoining(false);
+      setIsJoiningRoom(false);
     };
     
     const handleCreateRoomSuccess = (data) => {
@@ -666,6 +678,8 @@ const Home = ({ isConnected, setIsConnected }) => {
 
     // Cleanup function
     return () => {
+      if (!newSocket) return;
+      
       // Remove all event listeners
       newSocket.off('connect', handleConnect);
       newSocket.off('disconnect', handleDisconnect);
@@ -674,103 +688,102 @@ const Home = ({ isConnected, setIsConnected }) => {
       newSocket.off('room-error', handleRoomError);
       newSocket.off('create-room-success', handleCreateRoomSuccess);
       
-      // Disconnect only if we're not already connected to a room
+      // Only disconnect if we're not connected to a room
       if (newSocket.connected && !roomId) {
         newSocket.disconnect();
       }
     };
-  }, [navigate, roomId]);
+  }, [navigate, roomId, setIsConnected, socket]);
 
   const handleCreateRoom = useCallback((e) => {
     e.preventDefault();
-    if (!userName.trim()) {
-      setError('Please enter your name');
-      return;
-    }
     
-    setError('');
-    setIsJoining(true);
-    localStorage.setItem('userName', userName);
-    
-    // Generate a new room ID and create the room
-    const newRoomId = uuidv4().substring(0, 8).toLowerCase();
-    
-    // Emit create-room event to the server
-    if (socket) {
-      socket.emit('create-room', {
-        roomId: newRoomId,
-        userName: userName.trim()
-      });
-    } else {
+    try {
+      if (!userName.trim()) {
+        setError('Please enter your name');
+        return;
+      }
+      
+      setError('');
+      setIsJoiningRoom(true);
+      localStorage.setItem('userName', userName);
+      
+      // Generate a new room ID and create the room
+      const newRoomId = uuidv4().substring(0, 8).toLowerCase();
+      
+      // Emit create-room event to the server
+      if (socket?.connected) {
+        socket.emit('create-room', {
+          roomId: newRoomId,
+          userName: userName.trim()
+        });
+        
+        // Set a timeout in case the server doesn't respond
+        const timeout = setTimeout(() => {
+          if (isJoiningRoom) {
+            setError('Server is taking too long to respond. Please try again.');
+            setIsJoiningRoom(false);
+          }
+        }, 10000); // 10 seconds timeout
+        
+        return () => clearTimeout(timeout);
+      } else {
+        throw new Error('Not connected to server');
+      }
+    } catch (error) {
+      console.error('Error creating room:', error);
       setError('Connection error. Please try again.');
-      setIsJoining(false);
+      setIsJoiningRoom(false);
     }
-  }, [socket, userName]);
+  }, [socket, userName, isJoiningRoom]);
 
   const handleJoinRoom = useCallback((e) => {
     e.preventDefault();
-    if (!userName.trim()) {
-      setError('Please enter your name');
-      return;
-    }
     
-    if (!roomId.trim()) {
-      setError('Please enter a room code');
-      return;
-    }
-    
-    setError('');
-    setIsJoining(true);
-    localStorage.setItem('userName', userName);
-    
-    if (!socket) {
-      setError('Connection error. Please try again.');
-      setIsJoining(false);
-      return;
-    }
-    
-    // Emit join-room event to the server
-    const roomCode = roomId.trim().toLowerCase();
-    console.log('Attempting to join room:', roomCode, 'with name:', userName.trim());
-    
-    // Remove any existing listeners to prevent duplicates
-    socket.off('room-joined');
-    socket.off('room-error');
-    
-    socket.emit('join-room', {
-      roomId: roomCode,
-      userName: userName.trim()
-    }, (response) => {
-      console.log('Join room response:', response);
-      if (response && response.error) {
-        setError(response.error);
-        setIsJoining(false);
+    try {
+      if (!userName.trim()) {
+        setError('Please enter your name');
+        return;
       }
-    });
-    
-    // Add socket event listeners for handling join responses
-    const onRoomJoined = (data) => {
-      console.log('Room joined successfully:', data);
-      // The room-joined event from the main effect will handle navigation
-    };
-    
-    const onRoomError = (error) => {
+      
+      if (!roomId.trim()) {
+        setError('Please enter a room code');
+        return;
+      }
+      
+      setError('');
+      setIsJoiningRoom(true);
+      localStorage.setItem('userName', userName);
+      
+      if (!socket?.connected) {
+        throw new Error('Not connected to server');
+      }
+      
+      // Emit join-room event to the server
+      const roomCode = roomId.trim().toLowerCase();
+      console.log('Attempting to join room:', roomCode, 'with name:', userName.trim());
+      
+      socket.emit('join-room', {
+        roomId: roomCode,
+        userName: userName.trim()
+      });
+      
+      // Set a timeout in case the server doesn't respond
+      const timeout = setTimeout(() => {
+        if (isJoiningRoom) {
+          setError('Server is taking too long to respond. Please try again.');
+          setIsJoiningRoom(false);
+        }
+      }, 10000); // 10 seconds timeout
+      
+      return () => clearTimeout(timeout);
+      
+    } catch (error) {
       console.error('Error joining room:', error);
-      setError(error.message || 'Failed to join room');
-      setIsJoining(false);
-    };
-    
-    socket.on('room-joined', onRoomJoined);
-    socket.on('room-error', onRoomError);
-    
-    // Cleanup function
-    return () => {
-      if (socket) {
-        socket.off('room-joined', onRoomJoined);
-        socket.off('room-error', onRoomError);
-      }
-    };
-  }, [socket, userName, roomId]);
+      setError('Connection error. Please try again.');
+      setIsJoiningRoom(false);
+    }
+  }, [socket, userName, roomId, isJoiningRoom]);
 
   return (
     <div className="home-container">
