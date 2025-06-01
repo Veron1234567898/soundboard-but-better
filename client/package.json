@@ -2,30 +2,38 @@
   "name": "soundboard-client",
   "version": "1.0.0",
   "description": "Multiplayer Soundboard Client",
-  "main": "index.js",
-  "proxy": "http://localhost:3001",
+  "private": true,
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
     "socket.io-client": "^4.7.2",
     "react-icons": "^4.11.0",
     "react-router-dom": "^6.16.0",
     "uuid": "^9.0.1"
   },
   "scripts": {
-    "start": "parcel src/index.html --port 3000",
-    "dev": "parcel src/index.html --port 3000",
-    "build": "parcel build src/index.html --dist-dir dist --public-url ./",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
   },
-  "staticFiles": {
-    "staticPath": ["public"]
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
   },
-  "targets": {
-    "main": false
-  },
-  "browserslist": "> 0.5%, last 2 versions, not dead",
-  "devDependencies": {
-    "parcel": "^2.9.3"
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }
